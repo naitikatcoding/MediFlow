@@ -84,10 +84,18 @@ export const api = {
   // Forecasts & Risks
   getForecast: (facilityId, productId, horizonDays = 30) => 
     request(`/forecasts?facility_id=${facilityId}&product_id=${productId}&horizon_days=${horizonDays}`),
+  runForecast: (data = {}) => 
+    request('/forecasts/run', { method: 'POST', body: JSON.stringify(data) }),
   getRisks: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/risks${qs ? `?${qs}` : ''}`);
   },
+  getRiskDetail: (riskId) => 
+    request(`/risks/${riskId}`),
+  getRisksSummary: () => 
+    request('/risks/summary'),
+  getDashboardRisksSummary: () => 
+    request('/dashboard/risks-summary'),
 
   // Opportunities, Proposals & Approvals
   getOpportunities: (productId) => 
