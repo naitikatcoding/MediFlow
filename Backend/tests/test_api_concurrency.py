@@ -1,5 +1,14 @@
+import os
 import pytest
-from app.core.database import SessionLocal
+
+# Override DATABASE_URL to SQLite BEFORE any app imports.
+# Prevents these integration tests from hanging on unreachable YugabyteDB cloud.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_concurrency.db")
+
+from app.core.database import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from app.schemas.domain import RiskAssessmentResponse
 from app.services.seed_service import seed_database
 from app.models.inventory import FacilityBatchInventory
@@ -14,10 +23,18 @@ from app.api.routes.proposals import list_redistribution_opportunities
 
 @pytest.fixture(scope="module")
 def db():
-    session = SessionLocal()
-    seed_database(session, force_reset=True)
+    """Use an in-process SQLite engine for integration tests (no network required)."""
+    test_engine = create_engine(
+        "sqlite:///./test_concurrency.db",
+        connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(bind=test_engine)
+    TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    session = TestSession()
+    seed_database(session, force_reset=False)  # Tables already created; just seed
     yield session
     session.close()
+    Base.metadata.drop_all(bind=test_engine)
 
 
 def test_api_health_and_dashboard(db):

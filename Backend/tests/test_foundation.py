@@ -1,4 +1,11 @@
+import os
 import pytest
+
+# Override DATABASE_URL to SQLite BEFORE any app imports.
+# This prevents test_foundation from trying to connect to YugabyteDB cloud
+# which would cause a hang or DNS failure in environments without network access.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_foundation.db")
+
 from fastapi.testclient import TestClient
 from app.main import app
 

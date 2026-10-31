@@ -507,6 +507,181 @@ def seed_database(db: Session, force_reset: bool = True):
     )
     db.add(demo_label)
 
+    # =========================================================================
+    # A. INELIGIBLE BATCH SCENARIOS (quarantined / recalled / damaged / expired)
+    # =========================================================================
+
+    # A1. RECALLED batch of MED-003 (Ceftriaxone) at metro facility
+    b_ceft_recalled = Batch(
+        product_id=prod_map["MED-003"].id,
+        manufacturer_lot_number="LOT-CEFT-RECALLED-2025",
+        manufacturing_date=today - timedelta(days=120),
+        expiry_date=today + timedelta(days=20),
+        manufacturer="Glenmark Injectables",
+        quality_status="RECALLED"
+    )
+    db.add(b_ceft_recalled)
+    db.flush()
+    LedgerService.record_movement(db, fac_map["metro"].id, b_ceft_recalled.id, "OPENING_BALANCE", 50, unit="VIAL", reason="Recalled batch — DO NOT DISPENSE")
+
+    # A2. QUARANTINED batch of MED-001 (Meropenem) at apex facility
+    b_mero_quarantine = Batch(
+        product_id=prod_map["MED-001"].id,
+        manufacturer_lot_number="LOT-MERO-QUARANTINE",
+        manufacturing_date=today - timedelta(days=45),
+        expiry_date=today + timedelta(days=90),
+        manufacturer="Biochem Pharma Ltd",
+        quality_status="QUARANTINED"
+    )
+    db.add(b_mero_quarantine)
+    db.flush()
+    LedgerService.record_movement(db, fac_map["apex"].id, b_mero_quarantine.id, "OPENING_BALANCE", 80, unit="VIAL", reason="Quarantine opening balance — pending QC investigation")
+    LedgerService.record_movement(db, fac_map["apex"].id, b_mero_quarantine.id, "QUARANTINE", -80, unit="VIAL", reason="Placed under quarantine — QC hold pending investigation")
+
+    # A3. EXPIRED batch of MED-004 (Amoxicillin) at metro facility
+    #     Released quality status but past its expiry date — should be ineligible for transfer
+    b_amox_expired = Batch(
+        product_id=prod_map["MED-004"].id,
+        manufacturer_lot_number="LOT-AMOX-EXPIRED-23",
+        manufacturing_date=today - timedelta(days=390),
+        expiry_date=today - timedelta(days=30),   # Already expired!
+        manufacturer="Sun Diagnostics",
+        quality_status="RELEASED"
+    )
+    db.add(b_amox_expired)
+    db.flush()
+    LedgerService.record_movement(db, fac_map["metro"].id, b_amox_expired.id, "OPENING_BALANCE", 120, unit="TABLET", reason="Expired batch — status released but past expiry date")
+
+    # A4. DAMAGED batch of MED-009 (Paracetamol) at highland facility
+    b_para_damaged = Batch(
+        product_id=prod_map["MED-009"].id,
+        manufacturer_lot_number="LOT-PARA-DAMAGED",
+        manufacturing_date=today - timedelta(days=60),
+        expiry_date=today + timedelta(days=180),
+        manufacturer="Standard Healthcare Labs",
+        quality_status="DAMAGED"
+    )
+    db.add(b_para_damaged)
+    db.flush()
+    LedgerService.record_movement(db, fac_map["highland"].id, b_para_damaged.id, "OPENING_BALANCE", 60, unit="BOTTLE", reason="Damaged batch opening balance")
+    LedgerService.record_movement(db, fac_map["highland"].id, b_para_damaged.id, "DAMAGE", -60, unit="BOTTLE", reason="Batch damaged in transit — quarantined for disposal")
+
+    # =========================================================================
+    # B. STOCK-CHANGE-BEFORE-RESERVATION SCENARIO
+    # =========================================================================
+    # A second proposed transfer for MED-003 (Ceftriaxone):
+    # Apex → Highland, but apex ward consumption is 15-20/day and stock may fall below 60
+
+    prop_ceft_stock_risk = TransferProposal(
+        source_facility_id=fac_map["apex"].id,
+        destination_facility_id=fac_map["highland"].id,
+        product_id=prod_map["MED-003"].id,
+        proposed_quantity=60,
+        unit="VIAL",
+        status="PROPOSED",
+        priority="HIGH",
+        expected_arrival_at=datetime.now(timezone.utc) + timedelta(days=3),
+        source_rationale={
+            "usable_stock": 80,
+            "surplus_available": 60,
+            "summary": "Apex has 80 units on-hand (released). Proposing 60 units to Highland.",
+        },
+        destination_rationale={
+            "current_stock": 10,
+            "daily_burn_rate": 8.0,
+            "summary": "Highland requires Ceftriaxone replenishment.",
+        },
+        optimisation_metadata={
+            "scenario": "STOCK_CHANGE_RISK",
+            "note": "Apex Ceftriaxone stock may fall below 60 before reservation completes due to 15-20/day ward consumption",
+        },
+        proposal_version=1,
+    )
+    db.add(prop_ceft_stock_risk)
+    db.flush()
+
+    tpb_ceft = TransferProposalBatch(
+        proposal_id=prop_ceft_stock_risk.id,
+        batch_id=b3_apex.id,
+        quantity=60,
+        unit="VIAL",
+    )
+    db.add(tpb_ceft)
+
+    # =========================================================================
+    # C. REJECTED CANDIDATE SCENARIO
+    # =========================================================================
+    # Transfer of MED-002 (Insulin) from metro → st_jude rejected due to cold-chain constraint
+
+    prop_insulin_rejected = TransferProposal(
+        source_facility_id=fac_map["metro"].id,
+        destination_facility_id=fac_map["st_jude"].id,
+        product_id=prod_map["MED-002"].id,
+        proposed_quantity=50,
+        unit="VIAL",
+        status="REJECTED",
+        priority="NORMAL",
+        expected_arrival_at=datetime.now(timezone.utc) + timedelta(days=2),
+        source_rationale={
+            "usable_stock": 200,
+            "summary": "Metro has 200 units of Insulin Regular available.",
+        },
+        destination_rationale={
+            "current_stock": 0,
+            "summary": "St. Jude has no Insulin stock but lacks cold-chain storage.",
+        },
+        optimisation_metadata={
+            "rejection_reason": "STORAGE_INCOMPATIBLE",
+            "detail": (
+                "St. Jude lacks cold chain (max 28C). Insulin requires 2-8C refrigeration. "
+                "Transfer blocked by deterministic storage constraint check."
+            ),
+        },
+        proposal_version=1,
+    )
+    db.add(prop_insulin_rejected)
+    db.flush()
+
+    tpb_insulin = TransferProposalBatch(
+        proposal_id=prop_insulin_rejected.id,
+        batch_id=b2_metro.id,
+        quantity=50,
+        unit="VIAL",
+    )
+    db.add(tpb_insulin)
+
+    # Rejection approval record
+    appr_rejected = TransferApproval(
+        proposal_id=prop_insulin_rejected.id,
+        proposal_version=1,
+        facility_id=fac_map["metro"].id,
+        approver_user_id=user_map["amit.patel@metrocentral.org"].id,
+        decision="REJECTED",
+        reason=(
+            "Destination facility does not meet cold chain requirements for Insulin Regular "
+            "(COLD_CHAIN_2_8C). Storage constraint violation."
+        ),
+    )
+    db.add(appr_rejected)
+
+    # =========================================================================
+    # D. SAFETY STOCK POLICIES
+    # =========================================================================
+    safety_stock_policies = {
+        "metro_meropenem": {
+            "product": "MED-001",
+            "facility": "metro",
+            "safety_stock_units": 28,
+            "reorder_point": 60,
+        },
+        "highland_meropenem": {
+            "product": "MED-001",
+            "facility": "highland",
+            "safety_stock_units": 14,
+            "reorder_point": 35,
+        },
+    }
+
     db.commit()
     return {
         "status": "SUCCESS",
@@ -515,5 +690,13 @@ def seed_database(db: Session, force_reset: bool = True):
         "demo_qr_token": demo_token,
         "demo_transfer_id": demo_transfer.id,
         "active_proposal_id": prop.id,
-        "facilities": {k: v.id for k, v in fac_map.items()}
+        "facilities": {k: v.id for k, v in fac_map.items()},
+        # New scenario IDs
+        "recalled_batch_id": b_ceft_recalled.id,
+        "quarantined_batch_id": b_mero_quarantine.id,
+        "expired_batch_id": b_amox_expired.id,
+        "damaged_batch_id": b_para_damaged.id,
+        "stock_change_risk_proposal_id": prop_ceft_stock_risk.id,
+        "rejected_proposal_id": prop_insulin_rejected.id,
+        "safety_stock_policies": safety_stock_policies,
     }

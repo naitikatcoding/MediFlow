@@ -69,6 +69,7 @@ class LedgerService:
                 version=1
             )
             db.add(inv)
+            db.flush()  # Flush so subsequent calls find this record via query
         else:
             inv.version += 1
             inv.last_reconciled_at = datetime.now(timezone.utc)

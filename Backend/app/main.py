@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import engine, Base, SessionLocal, is_live_yugabyte
 from app.api.routes import (
     facilities, products, inventory, forecasts, risks,
     proposals, approvals, transfers, qr, agent, dashboard, audit, demo
@@ -23,8 +23,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mediflow")
 
-# Ensure tables are created
-Base.metadata.create_all(bind=engine)
+# Ensure tables are created -- gracefully handle unreachable DBs at startup
+_db_init_error = None
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables verified/created successfully.")
+except Exception as _db_exc:
+    _db_init_error = str(_db_exc)
+    logger.warning(
+        "Could not auto-create DB tables at startup: %s. "
+        "App will start but DB operations may fail.",
+        _db_exc
+    )
 
 app = FastAPI(
     title="MediFlow API",
@@ -101,7 +111,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Health Check Handler
 def compute_health_status():
     db_status = "UNKNOWN"
-    db_dialect = "postgresql/yugabyte" if settings.is_yugabyte else "sqlite_fallback"
+    db_dialect = "postgresql/yugabyte" if is_live_yugabyte else "sqlite_fallback"
     try:
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
@@ -118,7 +128,7 @@ def compute_health_status():
         "database": {
             "status": db_status,
             "engine": db_dialect,
-            "is_fallback": not settings.is_yugabyte
+            "is_fallback": not is_live_yugabyte
         },
         "integrations": {
             "gemini": gemini_adapter.get_status(),
