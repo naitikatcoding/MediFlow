@@ -114,6 +114,11 @@ export const api = {
     return request(`/transfers${qs ? `?${qs}` : ''}`);
   },
   getTransferDetails: (transferId) => request(`/transfers/${transferId}`),
+  generateTransferLabels: (transferId, actorUserId) => 
+    request(`/qr/transfers/${transferId}/generate-labels`, { method: 'POST', body: JSON.stringify({ actor_user_id: actorUserId }) }),
+  getTransferLabels: (transferId) => request(`/qr/transfers/${transferId}/labels`),
+  updateTransferState: (transferId, data) => 
+    request(`/transfers/${transferId}/state`, { method: 'POST', body: JSON.stringify(data) }),
   generateQRImage: (token) => request(`/qr/generate-image?token=${encodeURIComponent(token)}`),
   submitQRScan: (data) => request('/qr/scan', { method: 'POST', body: JSON.stringify(data) }),
   getDemoTokens: () => request('/qr/demo-tokens'),

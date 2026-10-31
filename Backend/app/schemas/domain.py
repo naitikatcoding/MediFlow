@@ -491,6 +491,9 @@ class ScanRequest(BaseModel):
     idempotency_key: str
     accepted_quantity: Optional[int] = None
     damaged_quantity: Optional[int] = 0
+    rejected_quantity: Optional[int] = 0
+    quarantined_quantity: Optional[int] = 0
+    expected_transfer_id: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -505,6 +508,10 @@ class ScanResultResponse(BaseModel):
     lot_number: Optional[str] = None
     expiry_date: Optional[str] = None
     verified_quantity: Optional[int] = None
+    damaged_quantity: Optional[int] = 0
+    rejected_quantity: Optional[int] = 0
+    quarantined_quantity: Optional[int] = 0
+    missing_quantity: Optional[int] = 0
     ledger_updated: bool = False
     timestamp: datetime
 

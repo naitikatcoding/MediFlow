@@ -491,3 +491,107 @@ def test_qr_image_generation():
     assert isinstance(data_uri, str)
     assert data_uri.startswith("data:image/png;base64,")
     assert len(data_uri) > 100
+
+
+def test_full_multi_category_reconciliation(db):
+    """
+    Test receipt with accepted, damaged, rejected, quarantined, and missing quantities.
+    Verify atomic ledger postings for each category.
+    """
+    ctx = _seed_test_transfer_environment(db, package_qty=100)
+
+    # Dispatch 100
+    QRService.process_scan(
+        db=db, token=ctx["token"], facility_id=ctx["src_fac"].id,
+        user_id=ctx["src_user"].id, scan_type="DISPATCH", idempotency_key="disp-multi-1"
+    )
+
+    # Receive: accepted 60, damaged 10, rejected 10, quarantined 10 -> missing = 10
+    res = QRService.process_scan(
+        db=db,
+        token=ctx["token"],
+        facility_id=ctx["dst_fac"].id,
+        user_id=ctx["dst_user"].id,
+        scan_type="RECEIVE",
+        idempotency_key="recv-multi-1",
+        accepted_quantity=60,
+        damaged_quantity=10,
+        rejected_quantity=10,
+        quarantined_quantity=10,
+        notes="Reconciliation with damaged, rejected, and quarantined vials"
+    )
+    assert res["success"] is True
+    assert res["status"] == "PARTIALLY_RECEIVED"
+    assert res["verified_quantity"] == 60
+    assert res["damaged_quantity"] == 10
+    assert res["rejected_quantity"] == 10
+    assert res["quarantined_quantity"] == 10
+    assert res["missing_quantity"] == 10
+
+    # Destination on-hand usable should be 60
+    dst_inv = db.query(FacilityBatchInventory).filter(
+        FacilityBatchInventory.facility_id == ctx["dst_fac"].id,
+        FacilityBatchInventory.batch_id == ctx["batch"].id
+    ).first()
+    assert dst_inv.on_hand_quantity == 60
+
+    # Verify ledger movements
+    movements = db.query(InventoryLedger).filter(
+        InventoryLedger.facility_id == ctx["dst_fac"].id
+    ).all()
+    movement_types = [m.movement_type for m in movements]
+    assert "TRANSFER_RECEIPT" in movement_types
+    assert "QUARANTINE" in movement_types
+    assert "DAMAGE" in movement_types
+    assert "TRANSFER_REJECTION" in movement_types
+
+
+def test_wrong_transfer_context_rejected(db):
+    """Scan specifying an expected_transfer_id rejects when token belongs to another transfer."""
+    ctx = _seed_test_transfer_environment(db, package_qty=50)
+
+    res = QRService.process_scan(
+        db=db,
+        token=ctx["token"],
+        facility_id=ctx["src_fac"].id,
+        user_id=ctx["src_user"].id,
+        scan_type="DISPATCH",
+        idempotency_key="scan-wrong-trf",
+        expected_transfer_id="TRF-SOME-OTHER-TRANSFER-ID"
+    )
+    assert res["success"] is False
+    assert res["status"] == "WRONG_TRANSFER"
+    assert "belongs to transfer" in res["message"]
+
+
+def test_label_generation_and_inspection(db):
+    """Test label generation strictly allowed only in RESERVED / READY_FOR_DISPATCH status."""
+    ctx = _seed_test_transfer_environment(db, package_qty=25)
+
+    # Change transfer status to DRAFT
+    ctx["transfer"].status = "DRAFT"
+    db.commit()
+
+    with pytest.raises(ValueError, match="Cannot generate labels"):
+        QRService.generate_labels_for_transfer(db, ctx["transfer"].id)
+
+    # Now set to RESERVED
+    ctx["transfer"].status = "RESERVED"
+    # Remove existing label from package so it can generate fresh
+    pkg = ctx["package"]
+    if pkg.label:
+        db.delete(pkg.label)
+        db.commit()
+
+    result = QRService.generate_labels_for_transfer(db, ctx["transfer"].id)
+    assert result["transfer_id"] == ctx["transfer"].id
+    assert result["labels_issued_count"] == 1
+    assert len(result["labels"]) == 1
+    generated_token = result["labels"][0]["token"]
+    assert generated_token.startswith("MEDIFLOW_")
+
+    # Inspect labels
+    inspect_res = QRService.get_transfer_labels(db, ctx["transfer"].id)
+    assert inspect_res["transfer_id"] == ctx["transfer"].id
+    assert len(inspect_res["packages"]) == 1
+    assert inspect_res["packages"][0]["label"]["status"] == "ISSUED"

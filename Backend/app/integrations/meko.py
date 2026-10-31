@@ -39,7 +39,10 @@ class MekoAdapter:
 
     @property
     def is_available(self) -> bool:
+        import os
         if self._force_unavailable:
+            return False
+        if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("RUN_LIVE_MEKO_TESTS"):
             return False
         return bool(
             self.api_key

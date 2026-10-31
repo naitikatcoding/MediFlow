@@ -55,6 +55,12 @@ def sanitize_database_url(raw_url: str) -> str:
 
 
 def get_database_url() -> URL:
+    import os
+    if os.environ.get("PYTEST_CURRENT_TEST") or settings.APP_ENV.lower() == "test":
+        test_url = os.environ.get("DATABASE_URL")
+        if test_url and ("sqlite" in test_url):
+            return make_url(test_url)
+        return make_url("sqlite:///./test_app.db")
     url = make_url(sanitize_database_url(settings.DATABASE_URL))
     if url.drivername == "postgresql":
         return url.set(drivername="postgresql+psycopg2")
