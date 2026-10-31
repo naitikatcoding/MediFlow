@@ -114,6 +114,10 @@ export const api = {
     return request(`/transfers${qs ? `?${qs}` : ''}`);
   },
   getTransferDetails: (transferId) => request(`/transfers/${transferId}`),
+  cancelTransfer: (transferId, data) => 
+    request(`/transfers/${transferId}/cancel`, { method: 'POST', body: JSON.stringify(data) }),
+  expireTransfer: (transferId, data = {}) => 
+    request(`/transfers/${transferId}/expire`, { method: 'POST', body: JSON.stringify(data) }),
   generateTransferLabels: (transferId, actorUserId) => 
     request(`/qr/transfers/${transferId}/generate-labels`, { method: 'POST', body: JSON.stringify({ actor_user_id: actorUserId }) }),
   getTransferLabels: (transferId) => request(`/qr/transfers/${transferId}/labels`),

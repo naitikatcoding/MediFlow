@@ -12,6 +12,9 @@ import { InventoryView } from '../components/views/InventoryView';
 import { ForecastView } from '../components/views/ForecastView';
 import { AuditView } from '../components/views/AuditView';
 import { AgentView } from '../components/views/AgentView';
+import { FacilitiesView } from '../components/views/FacilitiesView';
+import { DataQualityView } from '../components/views/DataQualityView';
+import { SettingsView } from '../components/views/SettingsView';
 import { api } from '../lib/api';
 
 export default function DashboardPage() {
@@ -200,6 +203,16 @@ export default function DashboardPage() {
                 />
               )}
 
+              {currentTab === 'facilities' && (
+                <FacilitiesView
+                  facilities={facilities}
+                  inventory={inventory}
+                  risks={risks}
+                  onNavigateTab={setCurrentTab}
+                  onSelectFacility={setActiveFacility}
+                />
+              )}
+
               {currentTab === 'risks' && (
                 <RisksView risks={risks} facilities={facilities} />
               )}
@@ -224,7 +237,12 @@ export default function DashboardPage() {
               )}
 
               {currentTab === 'transfers' && (
-                <TransfersView transfers={transfers} onNavigateTab={setCurrentTab} />
+                <TransfersView
+                  transfers={transfers}
+                  onNavigateTab={setCurrentTab}
+                  activeUser={activeUser}
+                  onRefreshTransfers={refreshData}
+                />
               )}
 
               {currentTab === 'scanner' && (
@@ -257,8 +275,29 @@ export default function DashboardPage() {
                 />
               )}
 
+              {currentTab === 'data-quality' && (
+                <DataQualityView
+                  facilities={facilities}
+                  onNavigateTab={setCurrentTab}
+                />
+              )}
+
               {currentTab === 'audit' && (
                 <AuditView />
+              )}
+
+              {currentTab === 'settings' && (
+                <SettingsView
+                  activeFacility={activeFacility}
+                  activeUser={activeUser}
+                  facilities={facilities}
+                  users={users}
+                  onFacilityChange={setActiveFacility}
+                  onUserChange={setActiveUser}
+                  onResetDemo={handleResetDemo}
+                  isResetting={isResetting}
+                  onRefreshData={refreshData}
+                />
               )}
             </>
           )}

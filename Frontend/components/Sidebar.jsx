@@ -10,21 +10,27 @@ import {
   TrendingUp, 
   History,
   ScanLine,
-  Bot
+  Bot,
+  Building2,
+  ShieldCheck,
+  Settings
 } from 'lucide-react';
 
 export function Sidebar({ currentTab, onSelectTab, counts = {} }) {
   const navItems = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'risks', label: 'Risk Queue', icon: AlertTriangle, count: counts.risks },
+    { id: 'overview', label: 'Command Overview', icon: LayoutDashboard },
+    { id: 'facilities', label: 'Facility Network', icon: Building2 },
+    { id: 'inventory', label: 'Inventory & Batches', icon: QrCode },
+    { id: 'risks', label: 'Risk Monitor', icon: AlertTriangle, count: counts.risks },
     { id: 'opportunities', label: 'Redistribution Matches', icon: ArrowLeftRight, count: counts.opportunities },
     { id: 'approvals', label: 'Transfer Approvals', icon: CheckCircle2, count: counts.approvals },
     { id: 'transfers', label: 'Transfers & QR Track', icon: Package, count: counts.transfers },
     { id: 'scanner', label: 'QR Scan Terminal', icon: ScanLine },
-    { id: 'inventory', label: 'Inventory & Batches', icon: QrCode },
     { id: 'forecasts', label: 'Demand Forecasts', icon: TrendingUp },
+    { id: 'data-quality', label: 'Data Quality & Ingestion', icon: ShieldCheck },
     { id: 'agents', label: 'Agent Workflows', icon: Bot },
     { id: 'audit', label: 'Ledger & Audit Trail', icon: History },
+    { id: 'settings', label: 'Settings & Demo Hub', icon: Settings },
   ];
 
   return (
