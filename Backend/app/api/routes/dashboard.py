@@ -8,7 +8,7 @@ from app.models.product import Product
 from app.models.proposal import TransferProposal
 from app.models.transfer import Transfer
 from app.services.risk_service import RiskService
-from app.schemas.domain import DashboardOverviewResponse
+from app.schemas.domain import DashboardOverviewResponse, RisksSummaryResponse
 from app.core.config import settings
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -64,3 +64,10 @@ def get_dashboard_overview(db: Session = Depends(get_db)):
         }
     }
 
+
+@router.get("/risks-summary", response_model=RisksSummaryResponse)
+def get_dashboard_risks_summary(db: Session = Depends(get_db)):
+    """
+    Dedicated dashboard summary endpoint for stockout and expiry risk counts.
+    """
+    return RiskService.get_risks_summary(db)

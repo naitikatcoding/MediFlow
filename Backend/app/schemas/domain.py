@@ -298,6 +298,23 @@ class ForecastDayEstimate(BaseModel):
     confidence_upper: float
 
 
+class ForecastTrajectoryItem(BaseModel):
+    day: int
+    date: str
+    starting_stock: int
+    demand: float
+    inbound: int
+    ending_stock: int
+    below_safety_stock: bool = False
+    is_stockout: bool = False
+
+
+class ForecastRunRequest(BaseModel):
+    facility_id: Optional[str] = None
+    product_id: Optional[str] = None
+    horizon_days: int = 30
+
+
 class ForecastResponse(BaseSchema):
     id: str
     facility_id: str
@@ -308,8 +325,46 @@ class ForecastResponse(BaseSchema):
     daily_average_demand: float
     confidence_score: float
     data_quality_score: float
+    demand_7d: Optional[float] = None
+    demand_30d: Optional[float] = None
+    unit: Optional[str] = "UNIT"
     warnings: List[str] = []
     daily_estimates: List[ForecastDayEstimate] = []
+    projected_stock_trajectory: Optional[List[ForecastTrajectoryItem]] = None
+    summary: Optional[Dict[str, Any]] = None
+
+
+class ForecastRunItem(BaseModel):
+    forecast_id: str
+    facility_id: str
+    product_id: str
+    daily_average_demand: float
+    projected_total_demand: float
+    confidence_score: float
+    warnings_count: int
+
+
+class ForecastRunBatchResponse(BaseModel):
+    total_runs: int
+    runs: List[ForecastRunItem]
+
+
+class RiskSummaryCount(BaseModel):
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    safe: int = 0
+    total: int = 0
+
+
+class RisksSummaryResponse(BaseModel):
+    total_risks: int
+    stockout_risks: RiskSummaryCount
+    expiry_risks: RiskSummaryCount
+    surplus_available: int
+    critical_alerts: int
+    by_facility: Dict[str, Dict[str, int]] = {}
 
 
 class RiskAssessmentResponse(BaseSchema):
