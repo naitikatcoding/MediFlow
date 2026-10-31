@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from app.core.config import settings
 
-logger = logging.getLogger("stockout_shield.database")
+logger = logging.getLogger("mediflow.database")
 
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
@@ -35,4 +35,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

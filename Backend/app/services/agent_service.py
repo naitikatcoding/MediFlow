@@ -9,7 +9,7 @@ from app.services.risk_service import RiskService
 from app.services.matching_service import MatchingService
 from app.services.proposal_service import ProposalService
 
-logger = logging.getLogger("stockout_shield.agent")
+logger = logging.getLogger("mediflow.agent")
 
 
 # --- MEKO Shared Memory / Decision Trace Adapter ---
@@ -125,7 +125,7 @@ class AgentGraphState(TypedDict):
     pause_for_human_approval: bool
 
 
-class StockoutShieldAgentService:
+class MediFlowAgentService:
     @staticmethod
     def run_inventory_monitoring_cycle(
         db: Session,
@@ -232,4 +232,3 @@ class StockoutShieldAgentService:
         })
 
         return final_state
-

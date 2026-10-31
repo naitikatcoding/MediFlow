@@ -9,10 +9,10 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     PORT: int = 8000
     HOST: str = "127.0.0.1"
-    SECRET_KEY: str = "dev_secret_key_change_in_production_32chars_min_stockout_shield"
+    SECRET_KEY: str = "dev_secret_key_change_in_production_32chars_min_mediflow"
     
     # Database
-    DATABASE_URL: str = "sqlite:///./stockout_shield.db"
+    DATABASE_URL: str = "sqlite:///./mediflow.db"
     DB_ECHO: bool = False
     
     # External Integrations
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     MEKO_BASE_URL: str = "https://api.mekodata.ai/v1"
     
     # QR & Security
-    QR_HMAC_SECRET: str = "dev_qr_hmac_secret_stockout_shield_token"
+    QR_HMAC_SECRET: str = "dev_qr_hmac_secret_mediflow_token"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     
     CORS_ORIGINS: List[str] = [
@@ -39,4 +39,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

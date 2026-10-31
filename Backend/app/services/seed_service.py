@@ -85,7 +85,7 @@ def seed_database(db: Session, force_reset: bool = True):
         {"name": "Pharmacist Amit Patel", "email": "amit.patel@metrocentral.org", "role": "PHARMACIST", "fac": "metro"},
         {"name": "Dr. Elena Gomez", "email": "elena.gomez@stjude.org", "role": "CLINICAL_DIRECTOR", "fac": "st_jude"},
         {"name": "Nurse Vikram Singh", "email": "vikram.singh@highlandhospital.org", "role": "PHARMACIST", "fac": "highland"},
-        {"name": "Network Coordinator Priya Nair", "email": "priya.nair@stockoutshield.org", "role": "NETWORK_ADMIN", "fac": "metro"}
+        {"name": "Network Coordinator Priya Nair", "email": "priya.nair@mediflow.example", "role": "NETWORK_ADMIN", "fac": "metro"}
     ]
 
     user_map = {}
@@ -517,4 +517,3 @@ def seed_database(db: Session, force_reset: bool = True):
         "active_proposal_id": prop.id,
         "facilities": {k: v.id for k, v in fac_map.items()}
     }
-

@@ -15,7 +15,7 @@ logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
-logger = logging.getLogger("stockout_shield")
+logger = logging.getLogger("mediflow")
 
 
 # Ensure tables are created
