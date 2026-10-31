@@ -1,0 +1,42 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node.js and Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+
+#md file
+IMPLEMENTATION_DETAILS.md
+PROJECT_BLUEPRINT.md
+Stockout_Shield_Standalone_Build_Prompts.md
