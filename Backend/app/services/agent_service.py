@@ -55,7 +55,7 @@ class GeminiAdapter:
                 from google import genai
                 client = genai.Client(api_key=settings.GEMINI_API_KEY)
                 prompt = f"""
-                You are the Clinical Supply Intelligence Agent for Stockout Shield.
+                You are the Clinical Supply Intelligence Agent for MediFlow.
                 Analyze the following verified inventory/forecast/risk data and produce a concise, professional explanation.
                 Do NOT alter any numerical values. Ground your summary strictly in these facts.
                 Context Type: {context_type}

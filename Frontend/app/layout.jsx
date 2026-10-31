@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Stockout Shield — Multi-Facility Inventory Intelligence & Traceability',
+  title: 'MediFlow — Multi-Facility Inventory Intelligence & Traceability',
   description: 'Forecasts demand, detects stockout and expiry risks, finds safe surplus matches, obtains dual human approvals, and verifies medicine custody with serialized QR labels.',
 };
 

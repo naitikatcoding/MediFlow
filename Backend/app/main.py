@@ -22,7 +22,7 @@ logger = logging.getLogger("stockout_shield")
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Stockout Shield API",
+    title="MediFlow API",
     description="Multi-facility medicine inventory intelligence, redistribution and QR traceability platform.",
     version="1.0.0"
 )
@@ -56,7 +56,7 @@ app.include_router(demo.router, prefix="/api")
 def health_check():
     return {
         "status": "healthy",
-        "service": "Stockout Shield API",
+        "service": "MediFlow API",
         "version": "1.0.0",
         "database": "CONNECTED",
         "simulation_mode": True

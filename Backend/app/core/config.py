@@ -4,7 +4,7 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Stockout Shield"
+    APP_NAME: str = "MediFlow"
     APP_ENV: str = "development"
     DEBUG: bool = True
     PORT: int = 8000

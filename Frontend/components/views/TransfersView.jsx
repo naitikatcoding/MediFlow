@@ -139,7 +139,7 @@ export function TransfersView({ transfers = [], onNavigateTab }) {
             </div>
 
             <p className="text-[10px] text-slate-400 leading-tight">
-              Verified platform workflow label. Authenticates physical custody state within Stockout Shield network.
+              Verified platform workflow label. Authenticates physical custody state within MediFlow network.
             </p>
 
             <button

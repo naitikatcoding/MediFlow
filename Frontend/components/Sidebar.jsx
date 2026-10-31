@@ -64,7 +64,7 @@ export function Sidebar({ currentTab, onSelectTab, counts = {} }) {
       </nav>
 
       <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-[11px] text-slate-400">
-        <p className="font-medium text-slate-300 mb-1">Stockout Shield v1.0</p>
+        <p className="font-medium text-slate-300 mb-1">MediFlow v1.0</p>
         <p>Level 2 Agentic Governance</p>
         <div className="mt-2 flex items-center space-x-1.5 text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>

@@ -9,7 +9,7 @@ if backend_dir not in sys.path:
 if __name__ == "__main__":
     import uvicorn
     print("\n" + "=" * 60)
-    print("  Stockout Shield — Backend API Starting")
+    print("  MediFlow — Backend API Starting")
     print("  Local URL:    http://127.0.0.1:8000")
     print("  API Docs:     http://127.0.0.1:8000/docs")
     print("=" * 60 + "\n")
