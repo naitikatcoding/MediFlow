@@ -27,20 +27,59 @@ export const api = {
   getHealth: () => request('/health'),
   getOverview: () => request('/dashboard/overview'),
   
-  // Facilities & Products
+  // Facilities & Products Catalogue
   getFacilities: () => request('/facilities'),
-  getProducts: (storage) => request(`/products${storage ? `?storage=${storage}` : ''}`),
+  getProducts: (storage, search) => {
+    const params = new URLSearchParams();
+    if (storage) params.append('storage', storage);
+    if (search) params.append('search', search);
+    const qs = params.toString();
+    return request(`/products${qs ? `?${qs}` : ''}`);
+  },
   getProductBatches: (productId) => request(`/products/${productId}/batches`),
+  getBatchDetail: (batchId) => request(`/batches/${batchId}`),
+  checkBatchEligibility: (batchId, destinationFacilityId) => {
+    const qs = destinationFacilityId ? `?destination_facility_id=${destinationFacilityId}` : '';
+    return request(`/batches/${batchId}/eligibility${qs}`);
+  },
   
-  // Inventory & Ledger
+  // Inventory & Ledger Management
   getInventory: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/inventory${qs ? `?${qs}` : ''}`);
   },
+  getInventorySummary: (facilityId) => 
+    request(`/inventory/summary${facilityId ? `?facility_id=${facilityId}` : ''}`),
+  getFacilityProductDetail: (facilityId, productId) => 
+    request(`/inventory/${facilityId}/${productId}`),
+  recordAdjustment: (data) => 
+    request('/inventory/adjustments', { method: 'POST', body: JSON.stringify(data) }),
+  allocateFefo: (data) => 
+    request('/inventory/fefo-allocate', { method: 'POST', body: JSON.stringify(data) }),
+  reconcileFacility: (facilityId) => 
+    request(`/inventory/reconciliation/${facilityId}`),
   getLedger: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/inventory/ledger${qs ? `?${qs}` : ''}`);
   },
+
+  // CSV Import Jobs
+  importInventoryCsv: async (formData) => {
+    const url = `${API_BASE}/api/v1/imports`;
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(errorBody.error?.message || errorBody.detail || 'Import failed');
+    }
+    return await res.json();
+  },
+  getImportJobs: (facilityId) => 
+    request(`/imports${facilityId ? `?facility_id=${facilityId}` : ''}`),
+  getImportJobErrors: (jobId) => 
+    request(`/imports/${jobId}/errors`),
 
   // Forecasts & Risks
   getForecast: (facilityId, productId, horizonDays = 30) => 

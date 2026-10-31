@@ -29,6 +29,21 @@ class FacilityResponse(BaseSchema):
 
 
 # Product & Batch
+class ProductCreate(BaseModel):
+    internal_code: str
+    name: str
+    generic_name: str
+    brand_name: Optional[str] = None
+    strength: str
+    dosage_form: str
+    pack_size: int = 1
+    base_unit: str = "UNIT"
+    gtin: Optional[str] = None
+    storage_requirements: str = "ROOM_TEMPERATURE"
+    transfer_policy_code: str = "STANDARD_ELIGIBLE"
+    status: str = "ACTIVE"
+
+
 class ProductResponse(BaseSchema):
     id: str
     internal_code: str
@@ -45,6 +60,16 @@ class ProductResponse(BaseSchema):
     status: str
 
 
+class BatchCreate(BaseModel):
+    product_id: str
+    manufacturer_lot_number: str
+    manufacturing_date: Optional[date] = None
+    expiry_date: date
+    manufacturer: str
+    supplier_id: Optional[str] = None
+    quality_status: str = "RELEASED"
+
+
 class BatchResponse(BaseSchema):
     id: str
     product_id: str
@@ -54,6 +79,37 @@ class BatchResponse(BaseSchema):
     manufacturer: str
     quality_status: str
     days_to_expiry: Optional[int] = None
+
+
+class BatchDetailResponse(BaseSchema):
+    id: str
+    product_id: str
+    product_name: str
+    product_code: str
+    generic_name: str
+    strength: str
+    dosage_form: str
+    storage_requirements: str
+    manufacturer_lot_number: str
+    manufacturing_date: Optional[date] = None
+    expiry_date: date
+    days_to_expiry: int
+    manufacturer: str
+    supplier_id: Optional[str] = None
+    quality_status: str
+    is_blocked: bool
+    blocking_reasons: List[str] = []
+    facilities_stock: List[Dict[str, Any]] = []
+
+
+class BatchEligibilityCheck(BaseModel):
+    batch_id: str
+    is_eligible: bool
+    is_blocked: bool
+    blocking_reasons: List[str] = []
+    days_to_expiry: int
+    remaining_shelf_life_days: int
+    storage_compatible: bool
 
 
 # Inventory & Ledger
@@ -77,7 +133,71 @@ class InventoryItemResponse(BaseSchema):
     damaged_quantity: int
     usable_quantity: int
     unit: str
+    quality_status: Optional[str] = "RELEASED"
+    is_blocked: Optional[bool] = False
+    data_freshness_status: Optional[str] = "FRESH"
     last_reconciled_at: Optional[datetime] = None
+
+
+class InventorySummaryResponse(BaseModel):
+    facility_id: Optional[str] = None
+    total_on_hand: int
+    total_reserved: int
+    total_quarantined: int
+    total_damaged: int
+    total_usable: int
+    distinct_products_count: int
+    distinct_batches_count: int
+    near_expiry_batches_count: int
+    cold_chain_items_count: int
+    data_freshness_status: str = "FRESH"
+    last_updated_at: Optional[datetime] = None
+
+
+class FacilityProductDetailResponse(BaseModel):
+    facility_id: str
+    facility_name: str
+    product_id: str
+    product_name: str
+    generic_name: str
+    strength: str
+    dosage_form: str
+    base_unit: str
+    storage_requirements: str
+    total_on_hand: int
+    total_reserved: int
+    total_quarantined: int
+    total_damaged: int
+    total_usable: int
+    data_freshness_status: str
+    batches: List[InventoryItemResponse]
+
+
+class InventoryAdjustmentRequest(BaseModel):
+    facility_id: str
+    batch_id: str
+    adjustment_type: str = Field(..., description="ADJUSTMENT, DAMAGE, QUARANTINE, RELEASE_FROM_QUARANTINE, RETURN, EXPIRY")
+    quantity_delta: int = Field(..., description="Quantity change (+ for addition/release, - for deduction/quarantine)")
+    unit: str = "UNIT"
+    reason: str = Field(..., min_length=3, description="Mandatory audit explanation for the adjustment")
+    actor_id: str = Field(..., min_length=1, description="Authorized user or system identity performing adjustment")
+    reference_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+
+class InventoryAdjustmentResponse(BaseModel):
+    success: bool
+    ledger_id: str
+    movement_type: str
+    quantity_delta: int
+    updated_on_hand: int
+    updated_usable: int
+    updated_reserved: int
+    updated_quarantined: int
+    updated_damaged: int
+    occurred_at: datetime
+    audit_id: Optional[str] = None
+    message: str
 
 
 class LedgerEntryResponse(BaseSchema):
@@ -90,8 +210,84 @@ class LedgerEntryResponse(BaseSchema):
     reference_type: Optional[str] = None
     reference_id: Optional[str] = None
     actor_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
     occurred_at: datetime
     reason: Optional[str] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
+# Import Jobs
+class ImportJobResponse(BaseSchema):
+    id: str
+    facility_id: str
+    source_type: str
+    filename: Optional[str] = None
+    status: str
+    row_count: int
+    accepted_count: int
+    rejected_count: int
+    error_summary: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+class ImportJobErrorDetail(BaseModel):
+    job_id: str
+    facility_id: str
+    status: str
+    row_count: int
+    accepted_count: int
+    rejected_count: int
+    errors: List[Dict[str, Any]]
+
+
+# Reconciliation
+class ReconciliationResult(BaseModel):
+    facility_id: str
+    batch_id: str
+    product_name: Optional[str] = None
+    lot_number: Optional[str] = None
+    materialized_on_hand: int
+    ledger_computed_on_hand: int
+    discrepancy: int
+    is_balanced: bool
+    last_reconciled_at: datetime
+
+
+class FacilityReconciliationResponse(BaseModel):
+    facility_id: str
+    reconciled_batches_count: int
+    balanced_batches_count: int
+    discrepancy_count: int
+    results: List[ReconciliationResult]
+
+
+# FEFO Allocation
+class FefoAllocationItem(BaseModel):
+    batch_id: str
+    manufacturer_lot_number: str
+    expiry_date: date
+    days_to_expiry: int
+    allocated_quantity: int
+    unit: str
+
+
+class FefoAllocationRequest(BaseModel):
+    facility_id: str
+    product_id: str
+    requested_quantity: int
+    destination_facility_id: Optional[str] = None
+    min_shelf_life_days: int = 15
+
+
+class FefoAllocationResponse(BaseModel):
+    facility_id: str
+    product_id: str
+    requested_quantity: int
+    allocated_total: int
+    unallocated_deficit: int
+    is_fully_allocated: bool
+    allocations: List[FefoAllocationItem]
 
 
 # Forecast & Risk

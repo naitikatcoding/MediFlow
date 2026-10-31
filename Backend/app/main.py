@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal, is_live_yugabyte
 from app.api.routes import (
     facilities, products, inventory, forecasts, risks,
-    proposals, approvals, transfers, qr, agent, dashboard, audit, demo
+    proposals, approvals, transfers, qr, agent, dashboard, audit, demo, imports
 )
 from app.integrations.gemini import gemini_adapter
 from app.integrations.meko import meko_adapter
@@ -160,7 +160,8 @@ v1_routers = [
     qr.router,
     agent.router,
     audit.router,
-    demo.router
+    demo.router,
+    imports.router
 ]
 
 for router in v1_routers:

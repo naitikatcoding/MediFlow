@@ -235,7 +235,13 @@ export default function DashboardPage() {
               )}
 
               {currentTab === 'inventory' && (
-                <InventoryView inventory={inventory} facilities={facilities} />
+                <InventoryView
+                  inventory={inventory}
+                  facilities={facilities}
+                  activeFacility={activeFacility}
+                  activeUser={activeUser}
+                  onRefresh={refreshData}
+                />
               )}
 
               {currentTab === 'forecasts' && (
