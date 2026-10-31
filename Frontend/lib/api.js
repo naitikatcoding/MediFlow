@@ -123,6 +123,10 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/agent/run-cycle${qs ? `?${qs}` : ''}`, { method: 'POST' });
   },
+  getAgentRuns: (limit = 20) => request(`/agent/runs?limit=${limit}`),
+  getAgentRunDetail: (workflowId) => request(`/agent/runs/${workflowId}`),
+  resumeWorkflow: (workflowId) => request(`/agent/resume/${workflowId}`, { method: 'POST' }),
+  getAgentSystemStatus: () => request('/agent/status'),
   getAgentTraces: (facilityId) => 
     request(`/agent/traces${facilityId ? `?facility_id=${facilityId}` : ''}`),
 

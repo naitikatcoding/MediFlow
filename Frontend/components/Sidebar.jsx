@@ -9,7 +9,8 @@ import {
   Package, 
   TrendingUp, 
   History,
-  ScanLine
+  ScanLine,
+  Bot
 } from 'lucide-react';
 
 export function Sidebar({ currentTab, onSelectTab, counts = {} }) {
@@ -22,6 +23,7 @@ export function Sidebar({ currentTab, onSelectTab, counts = {} }) {
     { id: 'scanner', label: 'QR Scan Terminal', icon: ScanLine },
     { id: 'inventory', label: 'Inventory & Batches', icon: QrCode },
     { id: 'forecasts', label: 'Demand Forecasts', icon: TrendingUp },
+    { id: 'agents', label: 'Agent Workflows', icon: Bot },
     { id: 'audit', label: 'Ledger & Audit Trail', icon: History },
   ];
 

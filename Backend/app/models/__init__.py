@@ -7,6 +7,7 @@ from app.models.intelligence import ForecastRun, RiskAssessment
 from app.models.proposal import TransferProposal, TransferProposalBatch, TransferApproval
 from app.models.transfer import Transfer, TransferPackage, SerializedLabel, ScanEvent
 from app.models.audit import AuditEvent, ImportJob
+from app.models.workflow import AgentWorkflowRun
 
 __all__ = [
     "Base",
@@ -32,5 +33,6 @@ __all__ = [
     "ScanEvent",
     "AuditEvent",
     "ImportJob",
+    "AgentWorkflowRun",
 ]
 

@@ -11,6 +11,7 @@ import { ScannerView } from '../components/views/ScannerView';
 import { InventoryView } from '../components/views/InventoryView';
 import { ForecastView } from '../components/views/ForecastView';
 import { AuditView } from '../components/views/AuditView';
+import { AgentView } from '../components/views/AgentView';
 import { api } from '../lib/api';
 
 export default function DashboardPage() {
@@ -246,6 +247,14 @@ export default function DashboardPage() {
 
               {currentTab === 'forecasts' && (
                 <ForecastView facilities={facilities} products={products} />
+              )}
+
+              {currentTab === 'agents' && (
+                <AgentView
+                  facilities={facilities}
+                  products={products}
+                  onNavigateTab={setCurrentTab}
+                />
               )}
 
               {currentTab === 'audit' && (

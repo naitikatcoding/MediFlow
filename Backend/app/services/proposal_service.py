@@ -73,7 +73,8 @@ class ProposalService:
         approver_user_id: str,
         proposal_version: int,
         decision: str = "APPROVED",
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
+        auto_reserve: bool = True
     ) -> Dict[str, Any]:
         """
         Records human approval for source or destination facility.
@@ -148,9 +149,19 @@ class ProposalService:
             }
         elif has_source and has_dest:
             proposal.status = "APPROVED"
-            # Concurrency-safe atomic reservation
-            reservation_result = ProposalService.reserve_stock_and_issue_labels(db, proposal)
-            return reservation_result
+            if auto_reserve:
+                # Concurrency-safe atomic reservation
+                reservation_result = ProposalService.reserve_stock_and_issue_labels(db, proposal)
+                return reservation_result
+            else:
+                db.commit()
+                return {
+                    "status": "APPROVED",
+                    "source_approved": True,
+                    "destination_approved": True,
+                    "reserved": False,
+                    "message": "Both facilities approved. Ready for workflow resumption."
+                }
 
         db.commit()
         return {"status": proposal.status, "source_approved": has_source, "destination_approved": has_dest}
@@ -163,6 +174,17 @@ class ProposalService:
         If stock changed or is insufficient -> aborts cleanly, records failure.
         If sufficient -> reserves inventory, creates Transfer, packages, and serialized QR labels.
         """
+        # Check if already reserved
+        existing_transfer = db.query(Transfer).filter(Transfer.proposal_id == proposal.id).first()
+        if existing_transfer:
+            return {
+                "status": "RESERVED",
+                "success": True,
+                "transfer_id": existing_transfer.id,
+                "proposal_id": proposal.id,
+                "message": "Transfer already reserved."
+            }
+
         proposal_batches = db.query(TransferProposalBatch).filter(
             TransferProposalBatch.proposal_id == proposal.id
         ).all()
