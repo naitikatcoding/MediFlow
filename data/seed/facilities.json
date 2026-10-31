@@ -1,0 +1,29 @@
+[
+  {
+    "id": "fac_apex_hospital",
+    "name": "Apex Care Hospital",
+    "facility_type": "hospital",
+    "address": "42 Health City Avenue, Medical District",
+    "contact_email": "pharmacy@apexcare.demo",
+    "contact_phone": "+91-98000-00001",
+    "is_active": true
+  },
+  {
+    "id": "fac_metro_diag",
+    "name": "Metro Diagnostic Centre",
+    "facility_type": "diagnostic_centre",
+    "address": "15 Diagnostic Road, Sector 4",
+    "contact_email": "admin@metrodiag.demo",
+    "contact_phone": "+91-98000-00002",
+    "is_active": true
+  },
+  {
+    "id": "fac_city_pharmacy",
+    "name": "City Central Pharmacy",
+    "facility_type": "pharmacy",
+    "address": "88 Market Square, North Wing",
+    "contact_email": "dispensary@citycentral.demo",
+    "contact_phone": "+91-98000-00003",
+    "is_active": true
+  }
+]

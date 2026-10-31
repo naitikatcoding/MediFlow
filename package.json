@@ -1,0 +1,24 @@
+{
+  "name": "mediflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-facility medicine inventory intelligence, redistribution, and QR verification platform",
+  "scripts": {
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "dev:backend": "python scripts/dev.py backend",
+    "dev": "python scripts/dev.py all",
+    "build:frontend": "npm --prefix Frontend run build",
+    "test:backend": "pytest Backend/tests",
+    "start:frontend": "npm --prefix Frontend start"
+  },
+  "keywords": [
+    "healthcare",
+    "inventory-intelligence",
+    "redistribution",
+    "fastapi",
+    "nextjs",
+    "qr-traceability"
+  ],
+  "author": "MediFlow Team",
+  "license": "UNLICENSED"
+}

@@ -1,7 +1,8 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 async function request(endpoint, options = {}) {
-  const url = `${API_BASE}/api${endpoint}`;
+  // Use /api/v1 as canonical API version prefix
+  const url = `${API_BASE}/api/v1${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
@@ -11,7 +12,8 @@ async function request(endpoint, options = {}) {
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(errorBody.detail || `API request failed with status ${res.status}`);
+      const errorMsg = errorBody.error?.message || errorBody.detail || `API request failed with status ${res.status}`;
+      throw new Error(errorMsg);
     }
     return await res.json();
   } catch (err) {
@@ -21,7 +23,7 @@ async function request(endpoint, options = {}) {
 }
 
 export const api = {
-  // Dashboard & Health
+  // System Health & Connectivity
   getHealth: () => request('/health'),
   getOverview: () => request('/dashboard/overview'),
   
@@ -86,4 +88,3 @@ export const api = {
     return request(`/audit/events${qs ? `?${qs}` : ''}`);
   }
 };
-

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "med_meropenem_1g",
+    "brand_name": "Meronem 1g",
+    "generic_name": "Meropenem",
+    "dosage_form": "Injection",
+    "strength": "1g",
+    "unit_of_measure": "vials",
+    "storage_condition": "ambient_below_25",
+    "criticality": "high"
+  },
+  {
+    "id": "med_piperacillin_tazo",
+    "brand_name": "Pipzo 4.5g",
+    "generic_name": "Piperacillin + Tazobactam",
+    "dosage_form": "Injection",
+    "strength": "4.5g",
+    "unit_of_measure": "vials",
+    "storage_condition": "ambient_below_25",
+    "criticality": "high"
+  },
+  {
+    "id": "med_insulin_glargine",
+    "brand_name": "Lantus SoloStar",
+    "generic_name": "Insulin Glargine",
+    "dosage_form": "Pre-filled Pen",
+    "strength": "100 IU/ml",
+    "unit_of_measure": "pens",
+    "storage_condition": "cold_chain_2_to_8",
+    "criticality": "high"
+  },
+  {
+    "id": "med_enoxaparin_40",
+    "brand_name": "Clexane 40mg",
+    "generic_name": "Enoxaparin Sodium",
+    "dosage_form": "Pre-filled Syringe",
+    "strength": "40mg/0.4ml",
+    "unit_of_measure": "syringes",
+    "storage_condition": "ambient_below_25",
+    "criticality": "medium"
+  }
+]

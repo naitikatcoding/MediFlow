@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../Backend
+      dockerfile: ../infra/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - PORT=8000
+      - HOST=0.0.0.0
+      - DATABASE_URL=sqlite:///./mediflow.db
+    volumes:
+      - ../Backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ../Frontend
+      dockerfile: ../infra/Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
