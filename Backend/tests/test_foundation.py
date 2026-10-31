@@ -1,18 +1,15 @@
-import os
+from concurrent.futures import ThreadPoolExecutor
 import pytest
-
-# Override DATABASE_URL to SQLite BEFORE any app imports.
-# This prevents test_foundation from trying to connect to YugabyteDB cloud
-# which would cause a hang or DNS failure in environments without network access.
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_foundation.db")
 
 from fastapi.testclient import TestClient
 from app.main import app
+from app.core.database import get_engine
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_health_endpoints(client):
@@ -26,6 +23,22 @@ def test_health_endpoints(client):
         assert "integrations" in data
         assert "gemini" in data["integrations"]
         assert "meko" in data["integrations"]
+
+
+def test_repeated_health_requests_return_all_connections_to_pool(client):
+    for _ in range(25):
+        response = client.get("/health")
+        assert response.status_code == 200
+
+    assert get_engine().pool.checkedout() == 0
+
+
+def test_concurrent_health_requests_do_not_exhaust_or_leak_pool_connections(client):
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        responses = list(executor.map(lambda _: client.get("/health"), range(60)))
+
+    assert all(response.status_code == 200 for response in responses)
+    assert get_engine().pool.checkedout() == 0
 
 
 def test_error_response_conventions(client):

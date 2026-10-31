@@ -81,15 +81,17 @@ def test_db():
     session.add_all([fac_hospital, fac_pharmacy, user, prod_vial, prod_cold])
     session.commit()
 
-    yield session, {
-        "fac_hospital": fac_hospital,
-        "fac_pharmacy": fac_pharmacy,
-        "user": user,
-        "prod_vial": prod_vial,
-        "prod_cold": prod_cold
-    }
-
-    session.close()
+    try:
+        yield session, {
+            "fac_hospital": fac_hospital,
+            "fac_pharmacy": fac_pharmacy,
+            "user": user,
+            "prod_vial": prod_vial,
+            "prod_cold": prod_cold
+        }
+    finally:
+        session.close()
+        engine.dispose()
 
 
 def test_inventory_calculations_and_usable_stock(test_db):

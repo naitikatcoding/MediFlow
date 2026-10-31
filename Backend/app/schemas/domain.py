@@ -416,6 +416,22 @@ class TransferProposalResponse(BaseSchema):
     created_at: datetime
 
 
+class ProposalGenerateRequest(BaseModel):
+    product_id: Optional[str] = None
+    facility_id: Optional[str] = None
+    auto_create_top: Optional[int] = 0
+    min_score: float = 40.0
+
+
+class ProposalGenerateResponse(BaseModel):
+    total_candidates_evaluated: int
+    accepted_count: int
+    rejected_count: int
+    proposals_created: List[Dict[str, Any]] = []
+    accepted_opportunities: List[Dict[str, Any]] = []
+    rejected_candidates: List[Dict[str, Any]] = []
+
+
 class ProposalApprovalRequest(BaseModel):
     proposal_version: int
     facility_id: str

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Operational Database (YugabyteDB / PostgreSQL with SQLite local fallback)
     DATABASE_URL: str = "sqlite:///./mediflow.db"
     DB_ECHO: bool = False
+    DB_POOL_SIZE: int = Field(default=2, ge=1, le=2)
+    DB_MAX_OVERFLOW: int = Field(default=1, ge=0, le=1)
+    DB_SQLITE_FALLBACK: Optional[bool] = None
     
     # External AI: Google Gemini
     GEMINI_API_KEY: Optional[str] = None
@@ -67,6 +70,13 @@ class Settings(BaseSettings):
     def is_yugabyte(self) -> bool:
         """Indicate whether the active database is PostgreSQL/YugabyteDB."""
         return "postgresql" in self.DATABASE_URL or "yugabyte" in self.DATABASE_URL
+
+    @property
+    def allow_sqlite_fallback(self) -> bool:
+        """Enable local fallback by default outside production."""
+        if self.DB_SQLITE_FALLBACK is not None:
+            return self.DB_SQLITE_FALLBACK
+        return self.APP_ENV.lower() != "production"
 
     @property
     def is_gemini_active(self) -> bool:

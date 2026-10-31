@@ -1,7 +1,7 @@
 import random
 from datetime import datetime, timezone, timedelta, date
 from sqlalchemy.orm import Session
-from app.core.database import Base, engine, SessionLocal
+from app.core.database import Base
 from app.models.organization import Organisation, Facility, User, FacilityMembership
 from app.models.product import Product, Batch
 from app.models.inventory import FacilityBatchInventory, InventoryLedger
@@ -14,9 +14,9 @@ from app.services.ledger_service import LedgerService
 
 def seed_database(db: Session, force_reset: bool = True):
     if force_reset:
-        # Drop and re-create all tables cleanly
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+        target_engine = db.get_bind()
+        Base.metadata.drop_all(bind=target_engine)
+        Base.metadata.create_all(bind=target_engine)
 
     # 1. Create Network Organisation
     org = Organisation(

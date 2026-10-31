@@ -9,7 +9,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.database import engine, Base, SessionLocal, is_live_yugabyte
+from app.core.database import (
+    Base,
+    SessionLocal,
+    dispose_engine,
+    fallback_to_sqlite,
+    get_engine,
+    initialize_database,
+    is_yugabyte_active,
+)
 from app.api.routes import (
     facilities, products, inventory, forecasts, risks,
     proposals, approvals, transfers, qr, agent, dashboard, audit, demo, imports
@@ -23,18 +31,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mediflow")
 
-# Ensure tables are created -- gracefully handle unreachable DBs at startup
-_db_init_error = None
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables verified/created successfully.")
-except Exception as _db_exc:
-    _db_init_error = str(_db_exc)
-    logger.warning(
-        "Could not auto-create DB tables at startup: %s. "
-        "App will start but DB operations may fail.",
-        _db_exc
-    )
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    initialize_database()
+    try:
+        startup_was_yugabyte = is_yugabyte_active()
+        try:
+            Base.metadata.create_all(bind=get_engine())
+            logger.info("Database schema verified/created.")
+        except Exception as exc:
+            fallback_switched = fallback_to_sqlite(exc)
+            if not fallback_switched and not (
+                startup_was_yugabyte and not is_yugabyte_active()
+            ):
+                raise
+            Base.metadata.create_all(bind=get_engine())
+            logger.warning("Database schema initialized on SQLite fallback.")
+        yield
+    finally:
+        dispose_engine()
 
 app = FastAPI(
     title="MediFlow API",
@@ -42,7 +58,8 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/api/v1/openapi.json"
+    openapi_url="/api/v1/openapi.json",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -111,15 +128,28 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Health Check Handler
 def compute_health_status():
     db_status = "UNKNOWN"
-    db_dialect = "postgresql/yugabyte" if is_live_yugabyte else "sqlite_fallback"
+    health_check_started_on_yugabyte = is_yugabyte_active()
     try:
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
         db_status = "CONNECTED"
     except Exception as e:
-        logger.error(f"Health check database failure: {e}")
-        db_status = f"ERROR: {str(e)}"
+        logger.error("Health check database failure: %s", type(e).__name__)
+        switched_to_sqlite = fallback_to_sqlite(e) or (
+            health_check_started_on_yugabyte and not is_yugabyte_active()
+        )
+        if switched_to_sqlite:
+            try:
+                with SessionLocal() as db:
+                    db.execute(text("SELECT 1"))
+                db_status = "CONNECTED"
+            except Exception as fallback_error:
+                logger.exception("SQLite fallback health check failed.")
+                db_status = f"ERROR: {type(fallback_error).__name__}"
+        else:
+            db_status = f"ERROR: {type(e).__name__}"
 
+    using_yugabyte = is_yugabyte_active()
     return {
         "status": "healthy" if db_status == "CONNECTED" else "degraded",
         "service": settings.APP_NAME,
@@ -127,8 +157,8 @@ def compute_health_status():
         "environment": settings.APP_ENV,
         "database": {
             "status": db_status,
-            "engine": db_dialect,
-            "is_fallback": not is_live_yugabyte
+            "engine": "postgresql/yugabyte" if using_yugabyte else "sqlite_fallback",
+            "is_fallback": not using_yugabyte
         },
         "integrations": {
             "gemini": gemini_adapter.get_status(),

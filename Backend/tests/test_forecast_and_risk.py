@@ -83,6 +83,7 @@ def db_session():
     finally:
         session.close()
         Base.metadata.drop_all(bind=test_engine)
+        test_engine.dispose()
 
 
 def test_consumption_aggregation_daily_and_weekly(db_session):

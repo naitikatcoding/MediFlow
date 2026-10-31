@@ -176,6 +176,8 @@ class MediFlowAgentService:
         def node_synthesize_explanation(state: AgentGraphState) -> AgentGraphState:
             matches = state.get("redistribution_results", {}).get("accepted_opportunities", [])
             top_match = matches[0] if matches else {}
+            # Release the read-only transaction before the external model call.
+            db.rollback()
             explanation = GeminiAdapter.generate_explanation(
                 context_type="REDISTRIBUTION_MATCH" if top_match else "INVENTORY_AUDIT",
                 data=top_match

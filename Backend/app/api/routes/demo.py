@@ -2,6 +2,7 @@ from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from app.api.deps import get_db
+from app.core.database import is_yugabyte_active
 from app.services.seed_service import seed_database
 from app.models.inventory import FacilityBatchInventory
 from app.models.product import Product, Batch
@@ -17,6 +18,12 @@ def reset_and_seed_demo_data(db: Session = Depends(get_db)):
     and seeds 4 facilities, 16 medicines, 10 weeks of consumption history,
     active proposals, and pre-issued QR packages.
     """
+    if is_yugabyte_active():
+        raise HTTPException(
+            status_code=409,
+            detail="Demo reset is disabled for YugabyteDB to protect operational data. Use a local SQLite database.",
+        )
+
     try:
         result = seed_database(db=db, force_reset=True)
         return {
@@ -80,4 +87,3 @@ def get_demo_context(db: Session = Depends(get_db)):
         "users": [{"id": u.id, "name": u.name, "email": u.email, "role": u.role} for u in users],
         "demo_qr_token": "SOS_DEMO_TRANSFER_TOKEN_VALID_2026"
     }
-

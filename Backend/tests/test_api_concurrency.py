@@ -35,6 +35,7 @@ def db():
     yield session
     session.close()
     Base.metadata.drop_all(bind=test_engine)
+    test_engine.dispose()
 
 
 def test_api_health_and_dashboard(db):

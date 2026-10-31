@@ -131,18 +131,51 @@ def main():
     parser.add_argument("--verify", action="store_true", help="Verify seed data only (no reset)")
     parser.add_argument("--smoke", action="store_true", help="Run smoke tests only")
     parser.add_argument("--no-reset", action="store_true", help="Seed without dropping tables")
+    parser.add_argument(
+        "--allow-remote-database",
+        action="store_true",
+        help="Explicitly allow this script to connect to PostgreSQL/YugabyteDB.",
+    )
+    parser.add_argument(
+        "--allow-remote-reset",
+        action="store_true",
+        help="Explicitly allow dropping and recreating tables on PostgreSQL/YugabyteDB.",
+    )
     args = parser.parse_args()
     
-    from app.core.database import SessionLocal, Base, engine, get_database_url
+    from app.core.database import (
+        SessionLocal,
+        get_database_url,
+        initialize_database,
+        is_yugabyte_active,
+        dispose_engine,
+    )
     from app.core.config import settings
+
+    if settings.is_yugabyte and not (
+        args.allow_remote_database or args.allow_remote_reset
+    ):
+        raise RuntimeError(
+            "Refusing to connect to PostgreSQL/YugabyteDB from the seed script "
+            "without --allow-remote-database."
+        )
+    initialize_database()
     
     db_url = get_database_url()
     logger.info(f"Database backend: {db_url.get_backend_name()}")
-    logger.info(f"Is YugabyteDB/PostgreSQL: {settings.is_yugabyte}")
-    if not settings.is_yugabyte:
+    logger.info("Active database: %s", "YugabyteDB/PostgreSQL" if is_yugabyte_active() else "SQLite")
+    if not is_yugabyte_active():
         logger.info("⚠️  Using SQLite fallback. For YugabyteDB, set DATABASE_URL in Backend/.env")
         logger.info("   YugabyteDB connection format: postgresql://user:pass@host:5433/db?sslmode=verify-full&sslrootcert=/path/to/root.crt")
-    
+    if is_yugabyte_active() and not (
+        args.verify or args.smoke or args.no_reset or args.allow_remote_reset
+    ):
+        dispose_engine()
+        raise RuntimeError(
+            "Refusing to reset a remote PostgreSQL/YugabyteDB database without "
+            "--allow-remote-reset. This operation drops and recreates all tables."
+        )
+
     db = SessionLocal()
     try:
         if args.smoke:
@@ -184,6 +217,7 @@ def main():
         raise
     finally:
         db.close()
+        dispose_engine()
 
 
 if __name__ == "__main__":

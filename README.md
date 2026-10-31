@@ -164,6 +164,15 @@ npm run dev:frontend
 
 ---
 
+### YugabyteDB connection budget and fallback
+
+- Each backend process uses one SQLAlchemy engine with a bounded YSQL pool: **2 pooled connections + at most 1 overflow connection**. Pool pre-ping is enabled, connections recycle after 15 minutes, and new connections time out after 5 seconds.
+- The maximum application pool use is **3 × worker processes × backend replicas**. The supplied launch scripts, Docker image, and Compose service run one worker by default, so one instance uses at most **3** application connections. For a free-tier/demo cluster, keep one worker and one backend replica unless you have confirmed a larger cluster connection budget.
+- Request dependencies close their sessions in `finally`; synchronous agent workflows reuse the request session and release its transaction before calling Gemini. No autonomous or scheduled agent workers open database sessions.
+- In development/test, a failed YSQL startup probe or runtime connection/pool failure switches future requests in that worker process to `Backend/mediflow.db` and logs the switch. Each worker has independent failover state. The request that encountered the failure is **not retried**, because retrying writes could duplicate operations.
+- SQLite is a local, separate database; fallback data does not replicate back to YugabyteDB. In `APP_ENV=production`, fallback is disabled by default and the service fails closed. Set `DB_SQLITE_FALLBACK=true` only when that data divergence is explicitly acceptable.
+- The demo reset API refuses to drop tables on YugabyteDB. The seed script also refuses a remote destructive reset unless `--allow-remote-reset` is explicitly supplied. Tests force a local SQLite URL before importing the app.
+
 ## 🧪 Running Tests
 
 ### Backend Tests (Pytest)
@@ -188,6 +197,9 @@ npm run build
 | Variable | Description | Default / Example |
 |---|---|---|
 | `APP_ENV` | Application environment | `development` |
+| `DB_POOL_SIZE` | Maximum persistent YSQL connections per process (capped at 2) | `2` |
+| `DB_MAX_OVERFLOW` | Maximum temporary YSQL overflow connections per process (capped at 1) | `1` |
+| `DB_SQLITE_FALLBACK` | Override the environment-based SQLite fallback policy | `false` in production by default |
 | `DATABASE_URL` | Operational DB connection | `sqlite:///./mediflow.db` or `postgresql://yugabyte:yugabyte@localhost:5433/mediflow` |
 | `GEMINI_API_KEY` | Google Gemini API key (optional for fallback) | `your_gemini_api_key_here` |
 | `GEMINI_MODEL` | Gemini model variant | `gemini-2.5-flash` |

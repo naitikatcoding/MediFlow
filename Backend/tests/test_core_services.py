@@ -51,6 +51,7 @@ def db_session():
         }
     finally:
         session.close()
+        engine.dispose()
 
 
 def test_usable_inventory_and_fefo_allocation(db_session):
@@ -282,4 +283,3 @@ def test_qr_verified_journey_and_duplicate_scan_protection(db_session):
     )
     assert res_dup_receive["success"] is False
     assert res_dup_receive["status"] == "ALREADY_RECEIVED"
-
