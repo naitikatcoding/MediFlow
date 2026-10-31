@@ -10,11 +10,11 @@ from alembic import context
 # Append app to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.config import settings
-from app.core.database import Base
+from app.core.database import Base, get_database_url
 import app.models  # load all models
 
 config = context.config
+database_url = get_database_url()
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -23,7 +23,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.DATABASE_URL
+    url = database_url.render_as_string(hide_password=False)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -37,7 +37,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    configuration["sqlalchemy.url"] = database_url.render_as_string(hide_password=False)
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -57,4 +57,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

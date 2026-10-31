@@ -1,5 +1,6 @@
 import pytest
 from app.core.database import SessionLocal
+from app.schemas.domain import RiskAssessmentResponse
 from app.services.seed_service import seed_database
 from app.models.inventory import FacilityBatchInventory
 from app.models.proposal import TransferProposal
@@ -36,6 +37,8 @@ def test_api_facilities_and_risks(db):
     types = {r["risk_type"] for r in risks}
     assert "STOCKOUT_RISK" in types
     assert "EXPIRY_RISK" in types
+    validated_risks = [RiskAssessmentResponse.model_validate(risk) for risk in risks]
+    assert len(validated_risks) == len(risks)
 
 
 def test_api_opportunities_and_deterministic_rejections(db):

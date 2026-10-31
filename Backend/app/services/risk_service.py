@@ -1,11 +1,24 @@
 from datetime import datetime, timezone, timedelta, date
 from typing import List, Dict, Any, Optional
+from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy.orm import Session
 from app.models.intelligence import RiskAssessment
 from app.models.organization import Facility
 from app.models.product import Product, Batch
 from app.services.inventory_service import InventoryService
 from app.services.forecast_service import ForecastService
+
+
+def _risk_id(
+    facility_id: str,
+    product_id: str,
+    risk_type: str,
+    subject_id: str = "",
+) -> str:
+    return str(uuid5(
+        NAMESPACE_URL,
+        f"mediflow-risk:{facility_id}:{product_id}:{risk_type}:{subject_id}",
+    ))
 
 
 class RiskService:
@@ -79,6 +92,7 @@ class RiskService:
                 if stockout_level in ("CRITICAL", "HIGH", "MEDIUM"):
                     deficit_qty = max(0, safety_stock_required + int(daily_demand * LEAD_TIME_DAYS) - usable_stock)
                     assessments.append({
+                        "id": _risk_id(fac.id, prod.id, "STOCKOUT_RISK"),
                         "facility_id": fac.id,
                         "facility_name": fac.name,
                         "product_id": prod.id,
@@ -112,6 +126,7 @@ class RiskService:
                     if days_until_exp < 0:
                         # Already expired
                         assessments.append({
+                            "id": _risk_id(fac.id, prod.id, "EXPIRY_RISK", b["batch_id"]),
                             "facility_id": fac.id,
                             "facility_name": fac.name,
                             "product_id": prod.id,
@@ -140,6 +155,7 @@ class RiskService:
                             # Leftover stock will expire before local need
                             exp_level = "HIGH" if days_until_exp <= 45 else "MEDIUM"
                             assessments.append({
+                                "id": _risk_id(fac.id, prod.id, "EXPIRY_RISK", b["batch_id"]),
                                 "facility_id": fac.id,
                                 "facility_name": fac.name,
                                 "product_id": prod.id,
@@ -167,6 +183,7 @@ class RiskService:
                     transferable_surplus = max(0, usable_stock - protected_qty)
                     if transferable_surplus >= 10:
                         assessments.append({
+                            "id": _risk_id(fac.id, prod.id, "SURPLUS_AVAILABLE"),
                             "facility_id": fac.id,
                             "facility_name": fac.name,
                             "product_id": prod.id,
@@ -187,4 +204,3 @@ class RiskService:
                         })
 
         return assessments
-

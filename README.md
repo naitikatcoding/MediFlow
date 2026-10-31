@@ -81,6 +81,7 @@ MediFlow/
    ```bash
    cp .env.example .env
    ```
+   When starting the backend with `run.py` or the repository scripts, a repository-root `.env` is loaded first when present; `Backend/.env` remains the fallback. Values already exported in the process environment take precedence.
 
 ---
 
