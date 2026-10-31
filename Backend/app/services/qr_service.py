@@ -16,6 +16,7 @@ from app.models.transfer import Transfer, TransferPackage, SerializedLabel, Scan
 from app.models.product import Batch, Product
 from app.models.organization import Facility, User, FacilityMembership
 from app.models.proposal import TransferProposal
+from app.models.audit import AuditEvent
 from app.core.security import generate_secure_opaque_token, hash_token
 from app.services.ledger_service import LedgerService
 
@@ -304,7 +305,7 @@ class QRService:
             # Execute valid dispatch
             label.status = "DISPATCHED"
             package.status = "DISPATCHED"
-            transfer.status = "IN_TRANSIT"
+            transfer.status = "DISPATCHED"
             transfer.dispatched_at = now
 
             # Decrement source stock from reserved on-hand
@@ -333,6 +334,21 @@ class QRService:
                 metadata_json={"package_ref": package.package_reference, "qty": package.quantity}
             )
             db.add(scan_record)
+
+            # Record authoritative audit event for physical dispatch
+            audit_disp = AuditEvent(
+                facility_id=facility_id,
+                actor_id=user_id or "system",
+                action="TRANSFER_DISPATCHED",
+                entity_type="TRANSFER",
+                entity_id=transfer.id,
+                before_state={"status": "READY_FOR_DISPATCH"},
+                after_state={"status": "DISPATCHED", "package_id": package.id, "quantity": package.quantity},
+                reason=f"Verified physical dispatch scan of package {package.package_reference}",
+                correlation_id=transfer.proposal_id,
+                created_at=now
+            )
+            db.add(audit_disp)
             db.commit()
 
             return {
@@ -526,6 +542,21 @@ class QRService:
                 }
             )
             db.add(scan_record)
+
+            # Record authoritative audit event for physical receipt
+            audit_recv = AuditEvent(
+                facility_id=facility_id,
+                actor_id=user_id or "system",
+                action="TRANSFER_RECEIVED",
+                entity_type="TRANSFER",
+                entity_id=transfer.id,
+                before_state={"status": "IN_TRANSIT"},
+                after_state={"status": transfer.status, "accepted": recv_qty, "damaged": dmg_qty, "rejected": rej_qty},
+                reason=f"Verified physical receipt and reconciliation of package {package.package_reference}",
+                correlation_id=transfer.proposal_id,
+                created_at=now
+            )
+            db.add(audit_recv)
             db.commit()
 
             return {

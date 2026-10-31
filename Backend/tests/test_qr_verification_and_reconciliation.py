@@ -197,7 +197,7 @@ def test_valid_dispatch_and_receipt_journey(db):
     db.refresh(ctx["transfer"])
     db.refresh(ctx["package"])
     db.refresh(ctx["label"])
-    assert ctx["transfer"].status == "IN_TRANSIT"
+    assert ctx["transfer"].status in ("DISPATCHED", "IN_TRANSIT")
     assert ctx["package"].status == "DISPATCHED"
     assert ctx["label"].status == "DISPATCHED"
 

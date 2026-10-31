@@ -16,20 +16,30 @@ export function ApprovalsView({
   const handleApproveAction = async (proposal, decision = 'APPROVED') => {
     setProcessingId(proposal.id);
     try {
+      // Determine which facility needs approval next
+      let targetFacilityId = activeFacility?.id;
+      if (!targetFacilityId || (targetFacilityId !== proposal.source_facility_id && targetFacilityId !== proposal.destination_facility_id)) {
+        targetFacilityId = !proposal.source_approved ? proposal.source_facility_id : proposal.destination_facility_id;
+      } else if (targetFacilityId === proposal.source_facility_id && proposal.source_approved && !proposal.destination_approved) {
+        // Source already approved, user wants to approve destination
+        targetFacilityId = proposal.destination_facility_id;
+      }
+
       await onApprove({
         proposal_id: proposal.id,
         proposal_version: proposal.proposal_version,
-        facility_id: activeFacility?.id || proposal.source_facility_id,
+        facility_id: targetFacilityId,
         approver_user_id: activeUser?.id,
         decision,
         reason: `${decision} recorded by ${activeUser?.name} (${activeUser?.role})`
       });
     } catch (err) {
-      alert(`Approval error: ${err.message}`);
+      alert(`Approval response: ${err.message}`);
     } finally {
       setProcessingId(null);
     }
   };
+
 
   return (
     <div className="space-y-6">

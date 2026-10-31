@@ -12,14 +12,26 @@ async function request(endpoint, options = {}) {
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
       const errorBody = await res.json().catch(() => ({ detail: res.statusText }));
-      const errorMsg = errorBody.error?.message || errorBody.detail || `API request failed with status ${res.status}`;
-      throw new Error(errorMsg);
+      let errorMsg = `API request failed with status ${res.status}`;
+      if (typeof errorBody.detail === 'string') {
+        errorMsg = errorBody.detail;
+      } else if (errorBody.detail?.message) {
+        errorMsg = errorBody.detail.message;
+      } else if (errorBody.error?.message) {
+        errorMsg = errorBody.error.message;
+      } else if (errorBody.detail) {
+        errorMsg = JSON.stringify(errorBody.detail);
+      }
+      const err = new Error(errorMsg);
+      err.data = errorBody;
+      throw err;
     }
     return await res.json();
   } catch (err) {
     console.error(`API Error on ${endpoint}:`, err);
     throw err;
   }
+
 }
 
 export const api = {

@@ -47,22 +47,28 @@ def simulate_stock_change_edge_case(
     When the reservation transaction attempts to execute, it detects insufficient stock,
     safely aborts without committing an invalid transfer, and triggers automatic re-planning!
     """
-    prod = db.query(Product).filter(Product.internal_code == product_code).first()
+    prod = db.query(Product).filter(
+        (Product.internal_code == product_code) | (Product.name.ilike(f"%{product_code}%"))
+    ).first()
     if not prod:
         raise HTTPException(status_code=404, detail="Product not found")
-
-    batch = db.query(Batch).filter(Batch.product_id == prod.id).first()
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
 
     fac = db.query(Facility).filter(Facility.name.ilike(f"%{facility_key}%")).first()
     if not fac:
         raise HTTPException(status_code=404, detail="Facility not found")
 
-    inv = db.query(FacilityBatchInventory).filter(
+    inv = db.query(FacilityBatchInventory).join(
+        Batch, FacilityBatchInventory.batch_id == Batch.id
+    ).filter(
         FacilityBatchInventory.facility_id == fac.id,
-        FacilityBatchInventory.batch_id == batch.id
+        Batch.product_id == prod.id
     ).first()
+
+    if not inv:
+        # Fallback to any inventory record at the facility for testing shock
+        inv = db.query(FacilityBatchInventory).filter(
+            FacilityBatchInventory.facility_id == fac.id
+        ).first()
 
     if inv:
         inv.on_hand_quantity = new_usable_quantity
