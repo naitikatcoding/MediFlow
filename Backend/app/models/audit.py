@@ -23,10 +23,12 @@ class AuditEvent(Base):
     before_state = Column(JSON, nullable=True)
     after_state = Column(JSON, nullable=True)
     reason = Column(Text, nullable=True)
+    correlation_id = Column(String(64), nullable=True, index=True)  # proposal_id / transfer_id / workflow_id
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     __table_args__ = (
         Index("ix_audit_entity_time", "entity_type", "entity_id", "created_at"),
+        Index("ix_audit_correlation", "correlation_id"),
     )
 
 

@@ -76,10 +76,32 @@ class QRService:
                 "timestamp": now
             }
 
+        # Check if label has been revoked or invalidated
+        if label.status in ("REVOKED", "EXPIRED", "VOID"):
+            return {
+                "success": False,
+                "scan_type": scan_type,
+                "status": f"LABEL_{label.status}",
+                "message": f"Verification failed: QR label has been {label.status.lower()} and is invalid for custody operations.",
+                "ledger_updated": False,
+                "timestamp": now
+            }
+
         package = db.query(TransferPackage).filter(TransferPackage.id == label.transfer_package_id).first()
         transfer = db.query(Transfer).filter(Transfer.id == package.transfer_id).first()
         batch = db.query(Batch).filter(Batch.id == package.batch_id).first()
         product = db.query(Product).filter(Product.id == batch.product_id).first()
+
+        # Check transfer status is not terminal
+        if transfer.status in ("CANCELLED", "EXPIRED", "REJECTED"):
+            return {
+                "success": False,
+                "scan_type": scan_type,
+                "status": f"TRANSFER_{transfer.status}",
+                "message": f"Operation rejected: Parent transfer is in terminal status '{transfer.status}'.",
+                "ledger_updated": False,
+                "timestamp": now
+            }
 
         # 3. Handle DISPATCH scan
         if scan_type.upper() == "DISPATCH":
@@ -238,11 +260,26 @@ class QRService:
             recv_qty = accepted_quantity if accepted_quantity is not None else package.quantity
             dmg_qty = max(0, damaged_quantity)
 
+            # Guard against over-quantity
+            if (recv_qty + dmg_qty) > package.quantity:
+                return {
+                    "success": False,
+                    "scan_type": "RECEIVE",
+                    "status": "OVER_QUANTITY_REJECTED",
+                    "message": f"Reconciliation rejected: Accounted quantity ({recv_qty + dmg_qty}) exceeds dispatched package quantity ({package.quantity}).",
+                    "ledger_updated": False,
+                    "timestamp": now
+                }
+
+            missing_qty = max(0, package.quantity - (recv_qty + dmg_qty))
+            has_discrepancy = (dmg_qty > 0 or missing_qty > 0)
+
             label.status = "RECEIVED"
-            package.status = "RECEIVED" if dmg_qty == 0 else "RECONCILED_WITH_DAMAGE"
-            transfer.status = "RECEIVED"
+            package.status = "RECEIVED" if not has_discrepancy else "RECONCILED_WITH_DISCREPANCY"
+            transfer.status = "RECEIVED" if not has_discrepancy else "PARTIALLY_RECEIVED"
             transfer.received_at = now
-            transfer.closed_at = now
+            if not has_discrepancy:
+                transfer.closed_at = now
 
             # Record ledger receipt at destination
             if recv_qty > 0:
@@ -267,7 +304,7 @@ class QRService:
                     facility_id=transfer.destination_facility_id,
                     batch_id=package.batch_id,
                     movement_type="DAMAGE",
-                    quantity_delta=0, # Damaged during transit not added to usable
+                    quantity_delta=0,
                     unit=package.unit,
                     reference_type="TRANSIT_DAMAGE",
                     reference_id=transfer.id,
@@ -283,7 +320,7 @@ class QRService:
                 scan_type="RECEIVE",
                 result="SUCCESS",
                 idempotency_key=idempotency_key,
-                metadata_json={"accepted": recv_qty, "damaged": dmg_qty, "notes": notes}
+                metadata_json={"accepted": recv_qty, "damaged": dmg_qty, "missing": missing_qty, "notes": notes}
             )
             db.add(scan_record)
             db.commit()
@@ -291,14 +328,20 @@ class QRService:
             return {
                 "success": True,
                 "scan_type": "RECEIVE",
-                "status": "RECEIVED",
-                "message": f"Package {package.package_reference} received and verified. Inventory ledger updated at destination.",
+                "status": transfer.status,
+                "message": (
+                    f"Package {package.package_reference} received and verified. Destination ledger updated."
+                    if not has_discrepancy else
+                    f"Package {package.package_reference} received with discrepancy (Accepted: {recv_qty}, Damaged: {dmg_qty}, Missing: {missing_qty})."
+                ),
                 "transfer_id": transfer.id,
                 "package_id": package.id,
                 "product_name": product.name,
                 "lot_number": batch.manufacturer_lot_number,
                 "expiry_date": str(batch.expiry_date),
                 "verified_quantity": recv_qty,
+                "damaged_quantity": dmg_qty,
+                "missing_quantity": missing_qty,
                 "ledger_updated": True,
                 "timestamp": now
             }
@@ -312,4 +355,5 @@ class QRService:
                 "ledger_updated": False,
                 "timestamp": now
             }
+
 

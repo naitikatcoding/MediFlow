@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { ScanLine, CheckCircle2, AlertTriangle, QrCode, ArrowRight, Camera, Key } from 'lucide-react';
+import { ScanLine, CheckCircle2, AlertTriangle, QrCode, ArrowRight, Camera, CameraOff, Key } from 'lucide-react';
 import { api } from '../../lib/api';
 
 export function ScannerView({ activeFacility, activeUser, onScanSuccess }) {
@@ -12,10 +12,60 @@ export function ScannerView({ activeFacility, activeUser, onScanSuccess }) {
   const [scanResult, setScanResult] = useState(null);
   const [demoTokens, setDemoTokens] = useState([]);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
 
   useEffect(() => {
     api.getDemoTokens().then(res => setDemoTokens(res)).catch(() => {});
   }, []);
+
+  // Initialize and handle camera lifecycle with html5-qrcode
+  useEffect(() => {
+    let html5QrCode = null;
+    let isMounted = true;
+
+    if (isCameraActive) {
+      setCameraError(null);
+      import('html5-qrcode').then(({ Html5Qrcode }) => {
+        if (!isMounted) return;
+        const qrRegion = document.getElementById('qr-video-reader');
+        if (!qrRegion) return;
+
+        html5QrCode = new Html5Qrcode('qr-video-reader');
+        html5QrCode.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            if (!isMounted) return;
+            setTokenInput(decodedText);
+            setIsCameraActive(false);
+            try {
+              html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {});
+            } catch (e) {}
+          },
+          () => {
+            // frame without QR is expected, suppress
+          }
+        ).catch((err) => {
+          if (!isMounted) return;
+          setCameraError(err?.message || 'Camera permission denied or camera device unavailable.');
+          setIsCameraActive(false);
+        });
+      }).catch((err) => {
+        if (!isMounted) return;
+        setCameraError('Camera scanner library failed to load: ' + err.message);
+        setIsCameraActive(false);
+      });
+    }
+
+    return () => {
+      isMounted = false;
+      if (html5QrCode && html5QrCode.isScanning) {
+        try {
+          html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {});
+        } catch (e) {}
+      }
+    };
+  }, [isCameraActive]);
 
   const handleScanSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -100,11 +150,48 @@ export function ScannerView({ activeFacility, activeUser, onScanSuccess }) {
             </button>
           </div>
 
-          {/* Token Input */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-slate-300">
-              Scanned QR Token (Opaque Identifier)
-            </label>
+          {/* Token Input with Live Camera Scanner option */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-slate-300">
+                Scanned QR Token (Opaque Identifier)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCameraActive(!isCameraActive);
+                  setCameraError(null);
+                }}
+                className="inline-flex items-center space-x-1.5 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded transition border border-slate-700"
+              >
+                {isCameraActive ? (
+                  <>
+                    <CameraOff className="w-3.5 h-3.5" />
+                    <span>Close Camera</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Open Camera Scanner</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Live Camera Feed Area */}
+            {isCameraActive && (
+              <div className="bg-black rounded-lg p-3 border border-slate-700 flex flex-col items-center">
+                <div id="qr-video-reader" className="w-full max-w-sm rounded overflow-hidden"></div>
+                <p className="text-[10px] text-slate-400 mt-2">Point device camera at serialized QR label to auto-scan</p>
+              </div>
+            )}
+
+            {cameraError && (
+              <div className="text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/60 p-2.5 rounded-lg">
+                ⚠️ {cameraError} (Use manual input or test tokens below)
+              </div>
+            )}
+
             <div className="relative">
               <input
                 type="text"
