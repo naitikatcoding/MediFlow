@@ -293,9 +293,18 @@ Open:
 
 There is no login or signup flow. “Get started” opens the dashboard.
 
+On first startup, an empty SQLite database in the local development environment is
+loaded with the deterministic synthetic demo dataset. Existing databases are left
+untouched. YugabyteDB and production databases are never automatically seeded.
+The repository-root `.env` is the canonical backend configuration, including when
+the server is started from the `Backend` directory. Process environment variables
+still take precedence.
+
 ### Docker Compose
 
-The provided Compose setup starts a local SQLite-backed development backend and the frontend:
+The provided Compose setup tries the configured YugabyteDB YSQL primary first and uses
+local SQLite only if that connection is unavailable. Set `DATABASE_URL` in the
+repository-root `.env` to your cluster's full YSQL connection string:
 
 ```bash
 docker compose -f infra/docker-compose.yml up --build
@@ -307,7 +316,7 @@ The root `.env.example` and `Backend/.env.example` provide the full backend conf
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DATABASE_URL` | Operational database connection | `sqlite:///./mediflow.db` |
+| `DATABASE_URL` | Primary YugabyteDB YSQL connection; SQLite is the local failure fallback | `postgresql://yugabyte:yugabyte@localhost:5433/yugabyte` |
 | `DB_POOL_SIZE` | Persistent YSQL pool size per backend process; capped at 2 | `2` |
 | `DB_MAX_OVERFLOW` | Temporary overflow connections per process; capped at 1 | `1` |
 | `DB_SQLITE_FALLBACK` | Explicitly override the environment fallback policy | Enabled outside production by default |
@@ -316,10 +325,17 @@ The root `.env.example` and `Backend/.env.example` provide the full backend conf
 | `CHAT_EMBEDDING_MODEL` | Gemini embedding model for pgvector retrieval | `gemini-embedding-001` |
 | `CHAT_ANSWER_MAX_TOKENS` | Maximum output tokens for assistant generation | `700` |
 | `MEKO_API_KEY` | Enables MEKO shared memory and decision trace calls | Not configured |
-| `MEKO_BASE_URL` | MEKO API endpoint | `https://api.mekodata.ai/v1` |
+| `MEKO_MCP_URL` | Hosted MEKO MCP endpoint | `https://mcp.mekodata.ai/mcp` |
 | `MEKO_DATAPACK_ID` | Optional MEKO datapack identifier | Not configured |
 | `NEXT_PUBLIC_API_URL` | FastAPI base URL used by the browser | `http://127.0.0.1:8000` |
 | `CORS_ORIGINS` | Allowed browser origins | Local frontend origins |
+
+To connect Meko, create a datapack in the Meko portal, generate an API key in
+**Settings → API Keys**, then set the full key (starting with `mko_tkn_`) and the
+datapack ID in the repository-root `.env`. Restart the backend after changing
+these settings. MediFlow uses Meko's hosted MCP endpoint and creates a conversation
+for the required `conversation_id` on first use. Meko context search is read-only;
+workflow traces are saved when a supply check runs.
 
 Secrets such as `SECRET_KEY`, `AUTH_SECRET`, and `QR_HMAC_SECRET` should be replaced with strong, unique values in any shared or deployed environment.
 

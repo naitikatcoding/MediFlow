@@ -122,13 +122,33 @@ export function Navbar({
               </span>
             </button>
             {showHealthDetails && (
-              <div className="absolute right-0 top-full mt-2 w-64 rounded-lg border border-slate-200 bg-white p-4 text-xs shadow-lg">
+              <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-slate-200 bg-white p-4 text-xs shadow-lg">
                 <div className="flex items-center gap-2 font-semibold text-slate-900">
                   <Activity className="h-4 w-4 text-emerald-700" />
                   System status
                 </div>
                 <p className="mt-2 text-slate-600">API: {apiStatus}</p>
-                <p className="mt-1 text-slate-600">Database: {databaseName}</p>
+                <p className="mt-1 text-slate-600">
+                  Active database: {health?.database?.engine || 'checking'}
+                </p>
+                <p className="mt-1 text-slate-600">
+                  Configured primary: {health?.database?.configured_engine || 'checking'}
+                </p>
+                {health?.database?.is_fallback && (
+                  <div className="mt-2 rounded-md bg-amber-50 p-2 text-amber-900">
+                    <p className="font-semibold">Using local SQLite fallback</p>
+                    <p className="mt-1">
+                      Yugabyte reconnect is retried every{' '}
+                      {health.database.failback_retry_interval_seconds || 10} seconds.
+                    </p>
+                    <p className="mt-1">
+                      Changes made while on this fallback are local and are not copied to YugabyteDB.
+                    </p>
+                    {health.database.fallback_reason && (
+                      <p className="mt-1">{health.database.fallback_reason}</p>
+                    )}
+                  </div>
+                )}
                 {apiError && <p className="mt-2 break-words text-rose-700">{apiError}</p>}
                 <button
                   type="button"

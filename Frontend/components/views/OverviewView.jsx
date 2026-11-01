@@ -6,8 +6,8 @@ import {
   Bot,
   Building2,
   CheckCircle2,
+  Database,
   Package,
-  ShieldCheck,
   TrendingDown,
 } from 'lucide-react';
 import { RiskBadge } from '../Badges';
@@ -17,6 +17,13 @@ export function OverviewView({
   risks = [],
   opportunities = [],
   proposals = [],
+  mekoContext = [],
+  mekoStatus,
+  isMekoLoading = false,
+  mekoError = '',
+  dataErrors = [],
+  contextError = '',
+  onRetry,
   onRunAgentCycle,
   isAgentRunning,
   agentResult,
@@ -31,42 +38,42 @@ export function OverviewView({
   const summaryCards = [
     {
       label: 'Facilities',
-      value: overview?.total_facilities ?? 0,
+      value: overview?.total_facilities,
       note: 'In your network',
       icon: Building2,
       tone: 'slate',
     },
     {
       label: 'Medicines',
-      value: overview?.monitored_products ?? 0,
+      value: overview?.monitored_products,
       note: 'Being monitored',
       icon: Package,
       tone: 'slate',
     },
     {
       label: 'Low stock alerts',
-      value: overview?.active_stockout_risks ?? stockoutRisks.length,
+      value: overview?.active_stockout_risks,
       note: 'Need attention',
       icon: AlertTriangle,
       tone: 'amber',
     },
     {
       label: 'Expiry alerts',
-      value: overview?.active_expiry_risks ?? expiryRisks.length,
+      value: overview?.active_expiry_risks,
       note: 'Batches at risk',
       icon: TrendingDown,
       tone: 'amber',
     },
     {
       label: 'Available to share',
-      value: overview?.transferable_surplus_units ?? 0,
+      value: overview?.transferable_surplus_units,
       note: 'Medicine units',
       icon: ArrowLeftRight,
       tone: 'green',
     },
     {
       label: 'Completed transfers',
-      value: overview?.completed_redistributions ?? 0,
+      value: overview?.completed_redistributions,
       note: 'Received and recorded',
       icon: CheckCircle2,
       tone: 'green',
@@ -81,6 +88,37 @@ export function OverviewView({
 
   return (
     <div className="space-y-7">
+      {(dataErrors.length > 0 || contextError || mekoError) && (
+        <section
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="text-sm text-amber-950">
+            <p className="font-semibold">Some dashboard data could not be loaded.</p>
+            <p className="mt-1 text-xs leading-5">
+              {[...dataErrors, contextError, mekoError].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-100"
+          >
+            Retry
+          </button>
+        </section>
+      )}
+
+      {overview && overview.total_facilities === 0 && overview.monitored_products === 0 && (
+        <section className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+          <p className="text-sm font-semibold text-sky-950">No operational records yet</p>
+          <p className="mt-1 text-xs leading-5 text-sky-900">
+            These values reflect the connected database. Import facility and inventory data,
+            or use the local demo reset to load the synthetic scenario; no live values are fabricated.
+          </p>
+        </section>
+      )}
+
       <section className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">
@@ -135,7 +173,7 @@ export function OverviewView({
                   <p className="text-sm font-medium text-slate-600">{card.label}</p>
                   <div className="mt-1 flex items-baseline gap-2">
                     <span className="text-2xl font-semibold tabular-nums tracking-tight text-slate-950">
-                      {card.value.toLocaleString()}
+                      {typeof card.value === 'number' ? card.value.toLocaleString() : '—'}
                     </span>
                     <span className="truncate text-xs text-slate-500">{card.note}</span>
                   </div>
@@ -144,6 +182,70 @@ export function OverviewView({
             );
           })}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+              <Database className="h-4 w-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Shared operational context</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Meko memory supports coordination; inventory numbers always come from the operational database.
+              </p>
+            </div>
+          </div>
+          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            {mekoStatus?.mode === 'LIVE_MEKO'
+              ? 'Meko connected'
+              : mekoStatus?.connection === 'ERROR'
+                ? 'Meko unavailable · local fallback'
+                : mekoStatus?.configured
+                  ? 'Meko configured · verifying'
+                  : 'Local memory fallback'}
+          </span>
+        </div>
+        {mekoStatus?.connection_error && (
+          <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950">
+            {mekoStatus.connection_error}
+          </p>
+        )}
+        {mekoStatus && !mekoStatus.configured && (
+          <p className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-950">
+            To enable Meko: create a datapack and generate a full API key in Meko Settings → API Keys.
+            Set <code>MEKO_API_KEY</code> and <code>MEKO_DATAPACK_ID</code> in the repository-root
+            <code> .env</code>, then restart the backend.
+          </p>
+        )}
+        {mekoContext.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            {mekoContext.slice(0, 3).map((context, index) => (
+              <article
+                key={context.ref_id || `context-${index}`}
+                className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+              >
+                <p className="text-sm leading-6 text-slate-700">{context.summary}</p>
+                <p className="mt-2 text-[11px] font-medium text-slate-500">
+                  {context.provenance === 'LIVE_MEKO'
+                    ? 'Meko shared memory'
+                    : context.summary?.startsWith('Synthetic operational baseline')
+                      ? 'Local synthetic baseline'
+                      : 'Local memory fallback'}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : isMekoLoading ? (
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-600">
+            Retrieving shared context…
+          </p>
+        ) : (
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-600">
+            No shared context has been saved yet. Run a supply check to add a decision trace.
+          </p>
+        )}
       </section>
 
       {agentResult && (

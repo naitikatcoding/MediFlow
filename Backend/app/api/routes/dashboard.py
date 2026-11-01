@@ -10,6 +10,7 @@ from app.models.transfer import Transfer
 from app.services.risk_service import RiskService
 from app.schemas.domain import DashboardOverviewResponse, RisksSummaryResponse
 from app.core.config import settings
+from app.integrations.meko import meko_adapter
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -59,7 +60,7 @@ def get_dashboard_overview(db: Session = Depends(get_db)):
         "system_mode": "SIMULATION",
         "integrations": {
             "gemini": "LIVE" if settings.GEMINI_API_KEY else "RULE_BASED_SYNTHESIS_ADAPTER",
-            "meko": "LIVE_MCP" if settings.MEKO_API_KEY else "LOCAL_DECISION_TRACE_ADAPTER",
+            "meko": meko_adapter.get_status()["mode"],
             "database": "OPERATIONAL_SOURCE_OF_TRUTH"
         }
     }

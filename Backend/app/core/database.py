@@ -24,6 +24,7 @@ engine: Optional[Engine] = None
 database_url: Optional[URL] = None
 primary_database_url: Optional[URL] = None
 is_live_yugabyte = False
+fallback_reason: Optional[str] = None
 _retired_engines: list[Engine] = []
 _local_knowledge_engine: Optional[Engine] = None
 _failback_retry_interval_seconds = 10
@@ -135,12 +136,13 @@ def ensure_audit_correlation_schema(active_engine: Engine) -> None:
 
 
 def _bind_engine(active_engine: Engine, active_url: URL, yugabyte: bool) -> None:
-    global engine, database_url, is_live_yugabyte, primary_database_url
+    global engine, database_url, is_live_yugabyte, primary_database_url, fallback_reason
     engine = active_engine
     database_url = active_url
     is_live_yugabyte = yugabyte
     if yugabyte:
         primary_database_url = active_url
+        fallback_reason = None
     SessionLocal.configure(bind=active_engine)
     if yugabyte:
         @event.listens_for(active_engine, "handle_error")
@@ -248,6 +250,7 @@ def _stop_failback_monitor() -> None:
 
 
 def _fallback_or_raise(error: Exception, failed_engine: Optional[Engine] = None) -> None:
+    global fallback_reason
     if failed_engine is not None:
         failed_engine.dispose()
     if not settings.allow_sqlite_fallback:
@@ -263,6 +266,10 @@ def _fallback_or_raise(error: Exception, failed_engine: Optional[Engine] = None)
     logger.warning(
         "YugabyteDB connection failed (%s); switching this process to local SQLite fallback.",
         type(error).__name__,
+    )
+    fallback_reason = (
+        f"{type(error).__name__}: YugabyteDB could not be reached. "
+        "Check the database URL, network access, TLS certificate, and credentials."
     )
     try:
         fallback_engine, fallback_url = _create_sqlite_engine()
@@ -311,6 +318,7 @@ def initialize_database() -> Engine:
             return sqlite_engine
 
         candidate_engine: Optional[Engine] = None
+        logger.info("Attempting to connect to the configured YugabyteDB YSQL primary.")
         try:
             candidate_engine = _create_yugabyte_engine(primary_url)
             with candidate_engine.connect():
@@ -367,7 +375,7 @@ def is_connection_failure(error: Exception) -> bool:
 
 def fallback_to_sqlite(error: Exception) -> bool:
     """Switch future sessions to SQLite after a live YSQL connection failure."""
-    global engine
+    global engine, fallback_reason
     if not is_connection_failure(error):
         return False
 
@@ -382,6 +390,10 @@ def fallback_to_sqlite(error: Exception) -> bool:
             return False
 
         failed_engine = engine
+        fallback_reason = (
+            f"{type(error).__name__}: YugabyteDB became unavailable. "
+            "Check database health, network access, TLS, and credentials."
+        )
         try:
             fallback_engine, fallback_url = _create_sqlite_engine()
         except Exception:
@@ -403,6 +415,31 @@ def fallback_to_sqlite(error: Exception) -> bool:
         )
         _start_failback_monitor()
         return True
+
+
+def get_database_status() -> dict:
+    """Return sanitized active/primary database and automatic failback status."""
+    using_yugabyte = is_yugabyte_active()
+    configured_yugabyte = settings.is_yugabyte
+    active_sqlite = engine is not None and engine.dialect.name == "sqlite"
+    is_fallback = configured_yugabyte and active_sqlite
+    return {
+        "status": "CONNECTED" if engine is not None else "NOT_INITIALIZED",
+        "engine": (
+            "postgresql/yugabyte"
+            if using_yugabyte
+            else "sqlite"
+            if active_sqlite
+            else "unavailable"
+        ),
+        "configured_engine": "postgresql/yugabyte" if configured_yugabyte else "sqlite",
+        "is_fallback": is_fallback,
+        "fallback_reason": fallback_reason if is_fallback else None,
+        "automatic_failback": configured_yugabyte,
+        "failback_retry_interval_seconds": (
+            _failback_retry_interval_seconds if is_fallback else None
+        ),
+    }
 
 
 def dispose_engine() -> None:

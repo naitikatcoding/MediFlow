@@ -76,6 +76,7 @@ def test_failback_monitor_retries_and_switches_sessions_to_yugabyte(monkeypatch)
     previous_url = database.database_url
     previous_primary_url = database.primary_database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
     previous_retired_engines = list(database._retired_engines)
     fallback_engine = create_engine("sqlite://")
     remote_engine = None
@@ -142,13 +143,16 @@ def test_failback_monitor_retries_and_switches_sessions_to_yugabyte(monkeypatch)
         database.database_url = previous_url
         database.primary_database_url = previous_primary_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)
 
 
 def test_yugabyte_startup_failure_activates_working_sqlite_fallback(monkeypatch, tmp_path):
     previous_engine = database.engine
     previous_url = database.database_url
+    previous_primary_url = database.primary_database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
     real_create_engine = database.create_engine
     fallback_engine = None
 
@@ -173,13 +177,25 @@ def test_yugabyte_startup_failure_activates_working_sqlite_fallback(monkeypatch,
             lambda: _temporary_sqlite_fallback(tmp_path),
         )
         monkeypatch.setattr(database.settings, "APP_ENV", "development")
+        monkeypatch.setattr(
+            database.settings,
+            "DATABASE_URL",
+            "postgresql://test:test@unreachable.invalid:5433/mediflow",
+        )
         monkeypatch.setattr(database.settings, "DB_SQLITE_FALLBACK", True)
+        monkeypatch.setattr(database, "_start_failback_monitor", lambda: None)
         database.SessionLocal.configure(bind=None)
 
         fallback_engine = database.initialize_database()
 
         assert fallback_engine.dialect.name == "sqlite"
         assert not database.is_yugabyte_active()
+        status = database.get_database_status()
+        assert status["configured_engine"] == "postgresql/yugabyte"
+        assert status["is_fallback"] is True
+        assert status["automatic_failback"] is True
+        assert status["failback_retry_interval_seconds"] == 10
+        assert "YugabyteDB could not be reached" in status["fallback_reason"]
         with database.SessionLocal() as session:
             assert session.execute(text("SELECT 1")).scalar_one() == 1
     finally:
@@ -187,7 +203,9 @@ def test_yugabyte_startup_failure_activates_working_sqlite_fallback(monkeypatch,
             fallback_engine.dispose()
         database.engine = previous_engine
         database.database_url = previous_url
+        database.primary_database_url = previous_primary_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)
 
 
@@ -195,11 +213,18 @@ def test_runtime_yugabyte_connection_failure_switches_future_sessions_to_sqlite(
     previous_engine = database.engine
     previous_url = database.database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
     remote_engine = create_engine("sqlite://")
 
     try:
         monkeypatch.setattr(database.settings, "APP_ENV", "development")
+        monkeypatch.setattr(
+            database.settings,
+            "DATABASE_URL",
+            "postgresql://test:test@unreachable.invalid:5433/mediflow",
+        )
         monkeypatch.setattr(database.settings, "DB_SQLITE_FALLBACK", True)
+        monkeypatch.setattr(database, "_start_failback_monitor", lambda: None)
         monkeypatch.setattr(
             database,
             "_create_sqlite_engine",
@@ -218,6 +243,7 @@ def test_runtime_yugabyte_connection_failure_switches_future_sessions_to_sqlite(
         assert switched
         assert not database.is_yugabyte_active()
         assert database.get_engine().dialect.name == "sqlite"
+        assert database.get_database_status()["is_fallback"] is True
         assert inspect(database.get_engine()).has_table("organisations")
         with database.SessionLocal() as session:
             assert session.execute(text("SELECT 1")).scalar_one() == 1
@@ -228,6 +254,7 @@ def test_runtime_yugabyte_connection_failure_switches_future_sessions_to_sqlite(
         database.engine = previous_engine
         database.database_url = previous_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)
 
 
@@ -235,6 +262,7 @@ def test_yugabyte_pool_exhaustion_triggers_sqlite_failover(monkeypatch, tmp_path
     previous_engine = database.engine
     previous_url = database.database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
     remote_engine = create_engine(
         "sqlite://",
         poolclass=database._YugabyteQueuePool,
@@ -247,6 +275,7 @@ def test_yugabyte_pool_exhaustion_triggers_sqlite_failover(monkeypatch, tmp_path
     try:
         monkeypatch.setattr(database.settings, "APP_ENV", "development")
         monkeypatch.setattr(database.settings, "DB_SQLITE_FALLBACK", True)
+        monkeypatch.setattr(database, "_start_failback_monitor", lambda: None)
         monkeypatch.setattr(
             database,
             "_create_sqlite_engine",
@@ -273,6 +302,7 @@ def test_yugabyte_pool_exhaustion_triggers_sqlite_failover(monkeypatch, tmp_path
         database.engine = previous_engine
         database.database_url = previous_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)
 
 
@@ -280,6 +310,7 @@ def test_yugabyte_pool_configuration_enforces_three_connections_per_process(monk
     previous_engine = database.engine
     previous_url = database.database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
     real_create_engine = database.create_engine
     captured_options = {}
     candidate_engine = None
@@ -318,6 +349,7 @@ def test_yugabyte_pool_configuration_enforces_three_connections_per_process(monk
         database.engine = previous_engine
         database.database_url = previous_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)
 
 
@@ -325,6 +357,7 @@ def test_production_fails_closed_when_yugabyte_is_unavailable(monkeypatch):
     previous_engine = database.engine
     previous_url = database.database_url
     previous_yugabyte_state = database.is_live_yugabyte
+    previous_fallback_reason = database.fallback_reason
 
     def fail_yugabyte_connection(url, *args, **kwargs):
         raise OperationalError("connect", {}, OSError("database unavailable"))
@@ -351,4 +384,5 @@ def test_production_fails_closed_when_yugabyte_is_unavailable(monkeypatch):
         database.engine = previous_engine
         database.database_url = previous_url
         database.is_live_yugabyte = previous_yugabyte_state
+        database.fallback_reason = previous_fallback_reason
         database.SessionLocal.configure(bind=previous_engine)

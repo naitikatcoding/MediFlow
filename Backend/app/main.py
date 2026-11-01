@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
@@ -15,6 +16,7 @@ from app.core.database import (
     dispose_engine,
     fallback_to_sqlite,
     get_engine,
+    get_database_status,
     initialize_database,
     is_yugabyte_active,
     ensure_audit_correlation_schema,
@@ -25,6 +27,7 @@ from app.api.routes import (
 )
 from app.integrations.gemini import gemini_adapter
 from app.integrations.meko import meko_adapter
+from app.services.seed_service import seed_demo_data_if_empty
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -51,6 +54,19 @@ async def lifespan(_: FastAPI):
             Base.metadata.create_all(bind=get_engine())
             ensure_audit_correlation_schema(get_engine())
             logger.warning("Database schema initialized on SQLite fallback.")
+
+        if (
+            settings.APP_ENV.lower() == "development"
+            and not settings.is_yugabyte
+            and not is_yugabyte_active()
+            and not os.environ.get("PYTEST_CURRENT_TEST")
+        ):
+            with SessionLocal() as db:
+                if seed_demo_data_if_empty(db):
+                    logger.info(
+                        "Empty local development database detected; "
+                        "loaded the deterministic synthetic demo dataset."
+                    )
         yield
     finally:
         dispose_engine()
@@ -152,20 +168,13 @@ def compute_health_status():
         else:
             db_status = f"ERROR: {type(e).__name__}"
 
-    using_yugabyte = is_yugabyte_active()
-    configured_database = "postgresql/yugabyte" if settings.is_yugabyte else "sqlite"
-    active_database = "postgresql/yugabyte" if using_yugabyte else "sqlite"
+    database_status = get_database_status()
     return {
         "status": "healthy" if db_status == "CONNECTED" else "degraded",
         "service": settings.APP_NAME,
         "version": "1.0.0",
         "environment": settings.APP_ENV,
-        "database": {
-            "status": db_status,
-            "engine": active_database,
-            "configured_engine": configured_database,
-            "is_fallback": settings.is_yugabyte and not using_yugabyte
-        },
+        "database": {**database_status, "status": db_status},
         "integrations": {
             "gemini": gemini_adapter.get_status(),
             "meko": meko_adapter.get_status()

@@ -36,6 +36,11 @@ export default function DashboardPage() {
   const [proposals, setProposals] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [mekoContext, setMekoContext] = useState([]);
+  const [mekoStatus, setMekoStatus] = useState(null);
+  const [mekoError, setMekoError] = useState('');
+  const [dataErrors, setDataErrors] = useState([]);
+  const [contextError, setContextError] = useState('');
 
   // Agent State
   const [isAgentRunning, setIsAgentRunning] = useState(false);
@@ -43,6 +48,7 @@ export default function DashboardPage() {
 
   // Status flags
   const [isLoading, setIsLoading] = useState(true);
+  const [isMekoLoading, setIsMekoLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [isCreatingProposal, setIsCreatingProposal] = useState(false);
 
@@ -50,6 +56,7 @@ export default function DashboardPage() {
   const loadContext = useCallback(async () => {
     try {
       const ctx = await api.getDemoContext();
+      setContextError('');
       setFacilities(ctx.facilities || []);
       setUsers(ctx.users || []);
       setActiveFacility(current =>
@@ -66,37 +73,76 @@ export default function DashboardPage() {
       setProducts(prods || []);
     } catch (err) {
       console.error('Error loading context:', err);
+      setContextError(err.message || 'Could not load facility and product context.');
     }
   }, []);
 
   // Refresh operational state
   const refreshData = useCallback(async () => {
     try {
-      const [ov, rsk, opp, prp, trn, inv] = await Promise.all([
-        api.getOverview().catch(() => null),
-        api.getRisks().catch(() => []),
-        api.getOpportunities().catch(() => ({ accepted_opportunities: [], rejected_candidates: [] })),
-        api.getProposals().catch(() => []),
-        api.getTransfers().catch(() => []),
-        api.getInventory().catch(() => [])
+      const results = await Promise.allSettled([
+        api.getOverview(),
+        api.getRisks(),
+        api.getOpportunities(),
+        api.getProposals(),
+        api.getTransfers(),
+        api.getInventory()
       ]);
+      const failures = [];
+      const applyResult = (index, label, setter, fallback) => {
+        const result = results[index];
+        if (result.status === 'fulfilled') {
+          setter(result.value ?? fallback);
+        } else {
+          failures.push(`${label}: ${result.reason?.message || 'request failed'}`);
+          setter(fallback);
+        }
+      };
 
-      if (ov) setOverview(ov);
-      setRisks(rsk || []);
-      setOpportunitiesData(opp || { accepted_opportunities: [], rejected_candidates: [] });
-      setProposals(prp || []);
-      setTransfers(trn || []);
-      setInventory(inv || []);
+      applyResult(0, 'Overview', setOverview, null);
+      applyResult(1, 'Risks', setRisks, []);
+      applyResult(2, 'Opportunities', setOpportunitiesData, {
+        accepted_opportunities: [],
+        rejected_candidates: []
+      });
+      applyResult(3, 'Proposals', setProposals, []);
+      applyResult(4, 'Transfers', setTransfers, []);
+      applyResult(5, 'Inventory', setInventory, []);
+      setDataErrors(failures);
     } catch (err) {
       console.error('Error refreshing dashboard data:', err);
+      setDataErrors([err.message || 'Could not refresh dashboard data.']);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  const refreshMekoData = useCallback(async () => {
+    setIsMekoLoading(true);
+    const failures = [];
+    try {
+      const traces = await api.getAgentTraces();
+      setMekoContext(Array.isArray(traces) ? traces : []);
+    } catch (err) {
+      failures.push(`MEKO context: ${err.message || 'request failed'}`);
+      setMekoContext([]);
+    }
+
+    try {
+      const status = await api.getAgentSystemStatus();
+      setMekoStatus(status?.meko || null);
+    } catch (err) {
+      failures.push(`Integration status: ${err.message || 'request failed'}`);
+      setMekoStatus(null);
+    }
+    setMekoError(failures.join(' · '));
+    setIsMekoLoading(false);
+  }, []);
+
   useEffect(() => {
     loadContext().then(() => refreshData());
-  }, [loadContext, refreshData]);
+    refreshMekoData();
+  }, [loadContext, refreshData, refreshMekoData]);
 
   useEffect(() => {
     if (currentTab === 'chat') setAssistantOpen(false);
@@ -111,6 +157,7 @@ export default function DashboardPage() {
       });
       setAgentResult(res);
       await refreshData();
+      await refreshMekoData();
     } catch (err) {
       alert(`Multi-agent cycle error: ${err.message}`);
     } finally {
@@ -144,6 +191,7 @@ export default function DashboardPage() {
       await api.resetDemo();
       await loadContext();
       await refreshData();
+      await refreshMekoData();
       setAgentResult(null);
     } catch (err) {
       alert(`Reset error: ${err.message}`);
@@ -211,6 +259,16 @@ export default function DashboardPage() {
                   risks={risks}
                   opportunities={opportunitiesData.accepted_opportunities}
                   proposals={proposals}
+                  mekoContext={mekoContext}
+                  mekoStatus={mekoStatus}
+                  isMekoLoading={isMekoLoading}
+                  mekoError={mekoError}
+                  dataErrors={dataErrors}
+                  contextError={contextError}
+                  onRetry={() => Promise.all([
+                    loadContext().then(refreshData),
+                    refreshMekoData()
+                  ])}
                   onRunAgentCycle={handleRunAgentCycle}
                   isAgentRunning={isAgentRunning}
                   agentResult={agentResult}

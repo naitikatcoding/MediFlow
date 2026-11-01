@@ -1,6 +1,13 @@
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+ROOT_ENV_FILE = BACKEND_DIR.parent / ".env"
+BACKEND_ENV_FILE = BACKEND_DIR / ".env"
+SETTINGS_ENV_FILE = ROOT_ENV_FILE if ROOT_ENV_FILE.is_file() else BACKEND_ENV_FILE
 
 
 class Settings(BaseSettings):
@@ -24,7 +31,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     
     # Operational Database (YugabyteDB / PostgreSQL with SQLite local fallback)
-    DATABASE_URL: str = "sqlite:///./mediflow.db"
+    DATABASE_URL: str = "postgresql://yugabyte:yugabyte@localhost:5433/yugabyte"
     DB_ECHO: bool = False
     DB_POOL_SIZE: int = Field(default=2, ge=1, le=2)
     DB_MAX_OVERFLOW: int = Field(default=1, ge=0, le=1)
@@ -38,8 +45,7 @@ class Settings(BaseSettings):
     
     # External AI: MEKO Shared Memory & Decision Traces
     MEKO_API_KEY: Optional[str] = None
-    MEKO_BASE_URL: str = "https://api.mekodata.ai/v1"
-    MEKO_MCP_URL: Optional[str] = None
+    MEKO_MCP_URL: str = "https://mcp.mekodata.ai/mcp"
     MEKO_DATAPACK_ID: Optional[str] = None
     
     # QR & Physical Handoff Security
@@ -54,7 +60,7 @@ class Settings(BaseSettings):
     ]
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=SETTINGS_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore"
     )

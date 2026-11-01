@@ -11,7 +11,7 @@ services:
       - APP_ENV=development
       - PORT=8000
       - HOST=0.0.0.0
-      - DATABASE_URL=sqlite:///./mediflow.db
+      - DATABASE_URL=${DATABASE_URL:-postgresql://yugabyte:yugabyte@host.docker.internal:5433/yugabyte}
     volumes:
       - ../Backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

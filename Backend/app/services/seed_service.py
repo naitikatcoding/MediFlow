@@ -700,3 +700,16 @@ def seed_database(db: Session, force_reset: bool = True):
         "rejected_proposal_id": prop_insulin_rejected.id,
         "safety_stock_policies": safety_stock_policies,
     }
+
+
+def seed_demo_data_if_empty(db: Session) -> bool:
+    """Load the deterministic demo only when no operational data exists."""
+    if (
+        db.query(Organisation.id).first()
+        or db.query(Facility.id).first()
+        or db.query(Product.id).first()
+    ):
+        return False
+
+    seed_database(db=db, force_reset=False)
+    return True
