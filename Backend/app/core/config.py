@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     DB_POOL_SIZE: int = Field(default=2, ge=1, le=2)
     DB_MAX_OVERFLOW: int = Field(default=1, ge=0, le=1)
     DB_SQLITE_FALLBACK: Optional[bool] = None
+    CHAT_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    CHAT_ANSWER_MAX_TOKENS: int = Field(default=700, ge=100, le=2048)
     
     # External AI: Google Gemini
     GEMINI_API_KEY: Optional[str] = None

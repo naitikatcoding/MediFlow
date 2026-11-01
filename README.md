@@ -173,6 +173,12 @@ npm run dev:frontend
 - SQLite is a local, separate database; fallback data does not replicate back to YugabyteDB. In `APP_ENV=production`, fallback is disabled by default and the service fails closed. Set `DB_SQLITE_FALLBACK=true` only when that data divergence is explicitly acceptable.
 - The demo reset API refuses to drop tables on YugabyteDB. The seed script also refuses a remote destructive reset unless `--allow-remote-reset` is explicitly supplied. Tests force a local SQLite URL before importing the app.
 
+### Inventory assistant
+
+The **Ask MediFlow** sidebar tool answers operational questions using live stock and batch records plus retrieved project context. Retrieval order is live MEKO context, YugabyteDB pgvector when enabled, then a local SQLite knowledge index. If a Gemini API key is configured, Gemini embeddings and grounded answer generation are used; otherwise the backend uses local feature-hash embeddings for vector search and a deterministic answer grounded in the retrieved facts. Current quantities always come from the operational database, never from MEKO memory or stale knowledge chunks. Chat history stays in the browser session and is not stored by the chat API.
+
+The chatbot is for inventory operations only, not patient-specific clinical or dosing advice. Do not enter patient identifiers or other sensitive personal information.
+
 ## 🧪 Running Tests
 
 ### Backend Tests (Pytest)
@@ -200,6 +206,7 @@ npm run build
 | `DB_POOL_SIZE` | Maximum persistent YSQL connections per process (capped at 2) | `2` |
 | `DB_MAX_OVERFLOW` | Maximum temporary YSQL overflow connections per process (capped at 1) | `1` |
 | `DB_SQLITE_FALLBACK` | Override the environment-based SQLite fallback policy | `false` in production by default |
+| `CHAT_EMBEDDING_MODEL` | Gemini embedding model used for pgvector retrieval when Gemini is configured | `gemini-embedding-001` |
 | `DATABASE_URL` | Operational DB connection | `sqlite:///./mediflow.db` or `postgresql://yugabyte:yugabyte@localhost:5433/mediflow` |
 | `GEMINI_API_KEY` | Google Gemini API key (optional for fallback) | `your_gemini_api_key_here` |
 | `GEMINI_MODEL` | Gemini model variant | `gemini-2.5-flash` |

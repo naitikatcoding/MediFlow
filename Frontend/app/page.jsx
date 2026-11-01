@@ -15,6 +15,7 @@ import { AgentView } from '../components/views/AgentView';
 import { FacilitiesView } from '../components/views/FacilitiesView';
 import { DataQualityView } from '../components/views/DataQualityView';
 import { SettingsView } from '../components/views/SettingsView';
+import { ChatView } from '../components/views/ChatView';
 import { api } from '../lib/api';
 
 export default function DashboardPage() {
@@ -281,6 +282,10 @@ export default function DashboardPage() {
                   products={products}
                   onNavigateTab={setCurrentTab}
                 />
+              )}
+
+              {currentTab === 'chat' && (
+                <ChatView activeFacility={activeFacility} />
               )}
 
               {currentTab === 'data-quality' && (

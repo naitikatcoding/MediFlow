@@ -25,6 +25,7 @@ database_url: Optional[URL] = None
 primary_database_url: Optional[URL] = None
 is_live_yugabyte = False
 _retired_engines: list[Engine] = []
+_local_knowledge_engine: Optional[Engine] = None
 _failback_retry_interval_seconds = 10
 _failback_stop_event = threading.Event()
 _failback_monitor_thread: Optional[threading.Thread] = None
@@ -336,6 +337,18 @@ def get_engine() -> Engine:
     return active_engine
 
 
+def get_local_knowledge_engine() -> Engine:
+    """Return a SQLite engine for local RAG retrieval, separate from live YSQL."""
+    global _local_knowledge_engine
+    with _engine_lock:
+        if not is_live_yugabyte:
+            return get_engine()
+        if _local_knowledge_engine is None:
+            _local_knowledge_engine, _ = _create_sqlite_engine()
+            logger.info("Local SQLite knowledge fallback initialized (mediflow.db).")
+        return _local_knowledge_engine
+
+
 def is_yugabyte_active() -> bool:
     return is_live_yugabyte
 
@@ -393,8 +406,12 @@ def fallback_to_sqlite(error: Exception) -> bool:
 
 
 def dispose_engine() -> None:
+    global _local_knowledge_engine
     _stop_failback_monitor()
     with _engine_lock:
+        if _local_knowledge_engine is not None:
+            _local_knowledge_engine.dispose()
+            _local_knowledge_engine = None
         if engine is not None:
             engine.dispose()
             logger.info("Database connection pool disposed.")

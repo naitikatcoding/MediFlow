@@ -151,6 +151,10 @@ export const api = {
   getAgentTraces: (facilityId) => 
     request(`/agent/traces${facilityId ? `?facility_id=${facilityId}` : ''}`),
 
+  // Inventory operations assistant
+  askInventoryAssistant: (data) =>
+    request('/chat', { method: 'POST', body: JSON.stringify(data) }),
+
   // Demo Control & Audit
   resetDemo: () => request('/demo/reset', { method: 'POST' }),
   simulateStockChange: (data) => request('/demo/simulate-stock-change', { method: 'POST', body: JSON.stringify(data) }),

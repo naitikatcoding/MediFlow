@@ -21,7 +21,7 @@ from app.core.database import (
 )
 from app.api.routes import (
     facilities, products, inventory, forecasts, risks,
-    proposals, approvals, transfers, qr, agent, dashboard, audit, demo, imports
+    proposals, approvals, transfers, qr, agent, dashboard, audit, demo, imports, chat
 )
 from app.integrations.gemini import gemini_adapter
 from app.integrations.meko import meko_adapter
@@ -197,7 +197,8 @@ v1_routers = [
     agent.router,
     audit.router,
     demo.router,
-    imports.router
+    imports.router,
+    chat.router,
 ]
 
 for router in v1_routers:

@@ -13,6 +13,7 @@ import {
   Database,
   History,
   LayoutDashboard,
+  MessageCircle,
   Package,
   ScanLine,
   Settings,
@@ -41,6 +42,7 @@ const navGroups = [
   {
     label: 'TOOLS',
     items: [
+      { id: 'chat', label: 'Ask MediFlow', icon: MessageCircle },
       { id: 'scanner', label: 'QR scanner', icon: ScanLine },
       { id: 'forecasts', label: 'Forecasts', icon: TrendingUp },
       { id: 'data-quality', label: 'Data quality', icon: Database },
@@ -91,16 +93,7 @@ export function Sidebar({
           isCollapsed ? 'md:w-[4.5rem]' : 'md:w-60'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
-        <div className={`flex h-16 shrink-0 items-center border-b border-slate-100 px-4 ${isCollapsed ? 'md:justify-center md:px-2' : 'justify-between'}`}>
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-700 text-sm font-bold text-white">
-              M
-            </div>
-            <div className={isCollapsed ? 'md:hidden' : ''}>
-              <p className="text-sm font-semibold tracking-tight text-slate-900">MediFlow</p>
-              <p className="text-[11px] text-slate-500">Care network</p>
-            </div>
-          </div>
+        <div className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-slate-100 px-3">
           <button
             type="button"
             onClick={onCloseMobile}
@@ -173,9 +166,6 @@ export function Sidebar({
             <Activity className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
             <span className={isCollapsed ? 'md:hidden' : ''}>Operations ready</span>
           </div>
-          <p className={`mt-1 pl-[22px] text-[10px] text-slate-400 ${isCollapsed ? 'md:hidden' : ''}`}>
-            MediFlow · Version 1.0
-          </p>
         </div>
       </aside>
     </>
