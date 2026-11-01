@@ -101,7 +101,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="relative">
+      <section className="relative bg-[radial-gradient(ellipse_at_50%_0%,rgba(16,185,129,0.09),transparent_68%)]">
         <div className="mx-auto max-w-7xl px-5 pb-14 pt-20 sm:px-8 sm:pb-16 sm:pt-28 lg:pt-32">
           <div className="mx-auto max-w-4xl text-center">
             <ScrollReveal className="mx-auto max-w-4xl">
