@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { MessageCircle, X } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar';
 import { OverviewView } from '../components/views/OverviewView';
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const [activeFacility, setActiveFacility] = useState(null);
   const [activeUser, setActiveUser] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   // Operational Data States
   const [overview, setOverview] = useState(null);
@@ -95,6 +97,10 @@ export default function DashboardPage() {
   useEffect(() => {
     loadContext().then(() => refreshData());
   }, [loadContext, refreshData]);
+
+  useEffect(() => {
+    if (currentTab === 'chat') setAssistantOpen(false);
+  }, [currentTab]);
 
   // Trigger Multi-Agent LangGraph cycle
   const handleRunAgentCycle = async () => {
@@ -316,6 +322,29 @@ export default function DashboardPage() {
           )}
         </main>
       </div>
+
+      {currentTab !== 'chat' && (
+        <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 sm:bottom-7 sm:right-7">
+          {assistantOpen && (
+            <div className="h-[min(42rem,calc(100dvh-7rem))] w-[min(27rem,calc(100vw-2.5rem))] animate-in slide-in-from-bottom-3 fade-in duration-200">
+              <ChatView
+                activeFacility={activeFacility}
+                compact
+                onClose={() => setAssistantOpen(false)}
+              />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setAssistantOpen((open) => !open)}
+            aria-label={assistantOpen ? 'Close MediFlow assistant' : 'Open MediFlow assistant'}
+            aria-expanded={assistantOpen}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-800 text-white shadow-lg shadow-emerald-950/20 transition duration-200 hover:scale-105 hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300 motion-reduce:transition-none"
+          >
+            {assistantOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

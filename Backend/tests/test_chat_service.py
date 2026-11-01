@@ -36,7 +36,15 @@ def chat_db():
         dosage_form="INJECTION",
         base_unit="VIAL",
     )
-    db.add_all([facility, product])
+    paracetamol = Product(
+        internal_code="MED-CHAT-02",
+        name="Paracetamol 1g IV Infusion",
+        generic_name="Paracetamol",
+        strength="1g",
+        dosage_form="INFUSION",
+        base_unit="BOTTLE",
+    )
+    db.add_all([facility, product, paracetamol])
     db.flush()
     batch = Batch(
         product_id=product.id,
@@ -58,6 +66,26 @@ def chat_db():
             unit="VIAL",
         )
     )
+    expired_batch = Batch(
+        product_id=paracetamol.id,
+        manufacturer_lot_number="CHAT-LOT-EXPIRED",
+        expiry_date=date.today() - timedelta(days=30),
+        manufacturer="Test Pharma",
+        quality_status="RELEASED",
+    )
+    db.add(expired_batch)
+    db.flush()
+    db.add(
+        FacilityBatchInventory(
+            facility_id=facility.id,
+            batch_id=expired_batch.id,
+            on_hand_quantity=14,
+            reserved_quantity=0,
+            quarantined_quantity=0,
+            damaged_quantity=0,
+            unit="BOTTLE",
+        )
+    )
     db.commit()
     try:
         yield db, facility
@@ -73,7 +101,7 @@ def add_second_facility_inventory(db, facility):
         facility_type="HOSPITAL",
         storage_capabilities={"cold_chain": True},
     )
-    batch = db.query(Batch).one()
+    batch = db.query(Batch).filter(Batch.manufacturer_lot_number == "CHAT-LOT-1").one()
     db.add(second_facility)
     db.flush()
     db.add(
@@ -106,10 +134,70 @@ def test_chat_answers_stock_from_live_inventory_and_uses_local_rag(monkeypatch, 
 
     assert response["retrieval_provider"] == "local_sqlite"
     assert response["answer_provider"] == "grounded_fallback"
-    assert "on hand 60 VIAL" in response["answer"]
-    assert "ledger-usable 42" in response["answer"]
-    assert "eligible non-expired released stock 42" in response["answer"]
+    assert response["answer"] == (
+        "Ceftriaxone 1g Injection at North Test Hospital: "
+        "60 VIAL on hand; 42 VIAL eligible for use."
+    )
     assert any(source["source"] == "Operational database" for source in response["sources"])
+
+
+def test_expired_stock_answer_is_concise_and_uses_only_current_medicine(monkeypatch, chat_db):
+    db, facility = chat_db
+    monkeypatch.setattr(chat_service.meko_adapter, "retrieve_context", lambda **kwargs: [])
+    monkeypatch.setattr(chat_service.database, "is_yugabyte_active", lambda: False)
+    monkeypatch.setattr(chat_service.database, "get_local_knowledge_engine", db.get_bind)
+    monkeypatch.setattr(chat_service.settings, "GEMINI_API_KEY", None)
+
+    response = chat_service.answer_chat(
+        db,
+        "How much stock of Paracetamol is expired?",
+        facility_id=facility.id,
+        history=[
+            {"role": "user", "content": "How much Ceftriaxone stock is left?"},
+            {"role": "assistant", "content": "Ceftriaxone stock is 60 VIAL."},
+        ],
+    )
+
+    assert response["answer"] == (
+        "Paracetamol 1g IV Infusion at North Test Hospital: 14 BOTTLE expired."
+    )
+    assert all("Ceftriaxone" not in suggestion for suggestion in response["suggestions"])
+    assert len(response["suggestions"]) == 3
+
+
+def test_expired_stock_question_with_no_matching_product_asks_for_medicine(monkeypatch, chat_db):
+    db, facility = chat_db
+    monkeypatch.setattr(chat_service.meko_adapter, "retrieve_context", lambda **kwargs: [])
+    monkeypatch.setattr(chat_service.database, "is_yugabyte_active", lambda: False)
+    monkeypatch.setattr(chat_service.database, "get_local_knowledge_engine", db.get_bind)
+    monkeypatch.setattr(chat_service.settings, "GEMINI_API_KEY", None)
+
+    response = chat_service.answer_chat(
+        db,
+        "How much stock is expired?",
+        facility_id=facility.id,
+    )
+
+    assert response["answer"] == "Which medicine should I check for expired stock?"
+
+
+def test_eligible_stock_question_does_not_count_expired_inventory(monkeypatch, chat_db):
+    db, facility = chat_db
+    monkeypatch.setattr(chat_service.meko_adapter, "retrieve_context", lambda **kwargs: [])
+    monkeypatch.setattr(chat_service.database, "is_yugabyte_active", lambda: False)
+    monkeypatch.setattr(chat_service.database, "get_local_knowledge_engine", db.get_bind)
+    monkeypatch.setattr(chat_service.settings, "GEMINI_API_KEY", None)
+
+    response = chat_service.answer_chat(
+        db,
+        "How much eligible Paracetamol stock remains?",
+        facility_id=facility.id,
+    )
+
+    assert response["answer"] == (
+        "Paracetamol 1g IV Infusion at North Test Hospital: "
+        "0 BOTTLE eligible, non-expired stock."
+    )
 
 
 def test_chat_question_can_override_selected_facility(monkeypatch, chat_db):
@@ -126,9 +214,10 @@ def test_chat_question_can_override_selected_facility(monkeypatch, chat_db):
         facility_id=selected_facility.id,
     )
 
-    assert "Selected facility: South Test Hospital." in response["answer"]
-    assert "on hand 25 VIAL" in response["answer"]
-    assert "on hand 60 VIAL" not in response["answer"]
+    assert response["answer"] == (
+        "Ceftriaxone 1g Injection at South Test Hospital: "
+        "25 VIAL on hand; 25 VIAL eligible for use."
+    )
 
 
 def test_chat_all_facilities_question_ignores_selected_facility(monkeypatch, chat_db):
@@ -147,8 +236,8 @@ def test_chat_all_facilities_question_ignores_selected_facility(monkeypatch, cha
 
     assert "North Test Hospital" in response["answer"]
     assert "South Test Hospital" in response["answer"]
-    assert "on hand 60 VIAL" in response["answer"]
-    assert "on hand 25 VIAL" in response["answer"]
+    assert "60 VIAL on hand" in response["answer"]
+    assert "25 VIAL on hand" in response["answer"]
 
 
 def test_chat_prioritizes_live_meko_context_over_pgvector(monkeypatch, chat_db):

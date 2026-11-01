@@ -80,16 +80,18 @@ export function Sidebar({
 
   return (
     <>
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-slate-950/30 md:hidden"
-        />
-      )}
+      <button
+        type="button"
+        aria-label="Close navigation"
+        aria-hidden={!mobileOpen}
+        tabIndex={mobileOpen ? 0 : -1}
+        onClick={onCloseMobile}
+        className={`fixed inset-0 z-40 bg-slate-950/30 transition-opacity duration-200 ease-out motion-reduce:transition-none md:hidden ${
+          mobileOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white md:sticky md:top-16 md:z-10 md:h-[calc(100vh-4rem)] md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-[width,transform] duration-200 ease-out motion-reduce:transition-none md:sticky md:top-16 md:z-10 md:h-[calc(100vh-4rem)] md:translate-x-0 ${
           isCollapsed ? 'md:w-[4.5rem]' : 'md:w-60'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
