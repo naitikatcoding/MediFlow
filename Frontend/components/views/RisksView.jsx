@@ -18,9 +18,9 @@ export function RisksView({ risks = [], facilities = [] }) {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Supply Risk & Expiry Monitor</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Stock and expiry alerts</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Deterministic detection of imminent stockouts, buffer violations, and near-expiry batch vulnerabilities.
+            Find medicines that may run low or expire before they can be used.
           </p>
         </div>
 

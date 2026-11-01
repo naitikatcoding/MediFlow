@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [products, setProducts] = useState([]);
   const [activeFacility, setActiveFacility] = useState(null);
   const [activeUser, setActiveUser] = useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Operational Data States
   const [overview, setOverview] = useState(null);
@@ -177,16 +178,19 @@ export default function DashboardPage() {
         onUserChange={setActiveUser}
         onResetDemo={handleResetDemo}
         isResetting={isResetting}
+        onOpenMenu={() => setMobileNavOpen(true)}
       />
 
-      <div className="flex-1 flex">
+      <div className="flex min-h-0 flex-1">
         <Sidebar
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
           counts={badgeCounts}
+          mobileOpen={mobileNavOpen}
+          onCloseMobile={() => setMobileNavOpen(false)}
         />
 
-        <main className="flex-1 p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
           {isLoading ? (
             <div className="h-96 flex flex-col items-center justify-center space-y-3 text-slate-400">
               <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>

@@ -77,7 +77,7 @@ export function ForecastView({ facilities = [], products = [] }) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Demand Intelligence & Baseline Forecasts</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Demand forecasts</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Statistical rolling baseline with historical consumption signals, uncertainty bounds, and data freshness validation.
           </p>

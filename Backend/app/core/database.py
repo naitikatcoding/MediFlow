@@ -3,7 +3,7 @@ import threading
 import urllib.parse
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine, event, inspect
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.exc import (
     DBAPIError,
@@ -22,7 +22,12 @@ logger = logging.getLogger("mediflow.database")
 _engine_lock = threading.RLock()
 engine: Optional[Engine] = None
 database_url: Optional[URL] = None
+primary_database_url: Optional[URL] = None
 is_live_yugabyte = False
+_retired_engines: list[Engine] = []
+_failback_retry_interval_seconds = 10
+_failback_stop_event = threading.Event()
+_failback_monitor_thread: Optional[threading.Thread] = None
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False)
 Base = declarative_base()
@@ -129,16 +134,116 @@ def ensure_audit_correlation_schema(active_engine: Engine) -> None:
 
 
 def _bind_engine(active_engine: Engine, active_url: URL, yugabyte: bool) -> None:
-    global engine, database_url, is_live_yugabyte
+    global engine, database_url, is_live_yugabyte, primary_database_url
     engine = active_engine
     database_url = active_url
     is_live_yugabyte = yugabyte
+    if yugabyte:
+        primary_database_url = active_url
     SessionLocal.configure(bind=active_engine)
     if yugabyte:
         @event.listens_for(active_engine, "handle_error")
         def switch_after_connection_error(exception_context):
             error = exception_context.sqlalchemy_exception or exception_context.original_exception
             fallback_to_sqlite(error)
+
+
+def _create_yugabyte_engine(primary_url: URL) -> Engine:
+    return create_engine(
+        primary_url,
+        connect_args={"connect_timeout": 5},
+        echo=settings.DB_ECHO,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=10,
+        pool_recycle=900,
+        pool_pre_ping=True,
+        pool_use_lifo=True,
+        poolclass=_YugabyteQueuePool,
+    )
+
+
+def _try_restore_yugabyte() -> bool:
+    """Rebind future sessions to Yugabyte when its configured endpoint recovers."""
+    global engine
+
+    with _engine_lock:
+        if is_live_yugabyte or not settings.is_yugabyte:
+            return is_live_yugabyte
+
+        primary_url = primary_database_url or get_database_url()
+        if primary_url.get_backend_name() != "postgresql":
+            logger.error(
+                "Automatic Yugabyte recovery is disabled because the configured "
+                "database URL is not PostgreSQL."
+            )
+            return False
+
+        candidate_engine: Optional[Engine] = None
+        try:
+            candidate_engine = _create_yugabyte_engine(primary_url)
+            with candidate_engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except Exception as exc:
+            if candidate_engine is not None:
+                candidate_engine.dispose()
+            logger.debug(
+                "Yugabyte recovery probe failed (%s); SQLite remains active.",
+                type(exc).__name__,
+            )
+            return False
+
+        fallback_engine = engine
+        _bind_engine(candidate_engine, primary_url, yugabyte=True)
+        if fallback_engine is not None:
+            _retired_engines.append(fallback_engine)
+        logger.warning(
+            "YugabyteDB connection restored; new sessions now use YugabyteDB. "
+            "Changes made in the local SQLite fallback remain local and are not "
+            "automatically copied."
+        )
+        return True
+
+
+def _run_failback_monitor() -> None:
+    while not _failback_stop_event.is_set():
+        if not is_yugabyte_active():
+            try:
+                _try_restore_yugabyte()
+            except Exception:
+                logger.exception(
+                    "Unexpected error while checking whether YugabyteDB has recovered."
+                )
+        if _failback_stop_event.wait(_failback_retry_interval_seconds):
+            return
+
+
+def _start_failback_monitor() -> None:
+    global _failback_monitor_thread
+
+    if not settings.is_yugabyte:
+        return
+
+    with _engine_lock:
+        if _failback_monitor_thread is not None and _failback_monitor_thread.is_alive():
+            return
+        _failback_stop_event.clear()
+        _failback_monitor_thread = threading.Thread(
+            target=_run_failback_monitor,
+            name="mediflow-yugabyte-failback",
+            daemon=True,
+        )
+        _failback_monitor_thread.start()
+
+
+def _stop_failback_monitor() -> None:
+    global _failback_monitor_thread
+
+    _failback_stop_event.set()
+    monitor_thread = _failback_monitor_thread
+    if monitor_thread is not None and monitor_thread is not threading.current_thread():
+        monitor_thread.join(timeout=10)
+    _failback_monitor_thread = None
 
 
 def _fallback_or_raise(error: Exception, failed_engine: Optional[Engine] = None) -> None:
@@ -171,6 +276,7 @@ def _fallback_or_raise(error: Exception, failed_engine: Optional[Engine] = None)
         logger.exception("Could not initialize the SQLite fallback schema.")
         raise
     logger.warning("Active database: local SQLite fallback (mediflow.db).")
+    _start_failback_monitor()
 
 
 def initialize_database() -> Engine:
@@ -205,18 +311,7 @@ def initialize_database() -> Engine:
 
         candidate_engine: Optional[Engine] = None
         try:
-            candidate_engine = create_engine(
-                primary_url,
-                connect_args={"connect_timeout": 5},
-                echo=settings.DB_ECHO,
-                pool_size=settings.DB_POOL_SIZE,
-                max_overflow=settings.DB_MAX_OVERFLOW,
-                pool_timeout=10,
-                pool_recycle=900,
-                pool_pre_ping=True,
-                pool_use_lifo=True,
-                poolclass=_YugabyteQueuePool,
-            )
+            candidate_engine = _create_yugabyte_engine(primary_url)
             with candidate_engine.connect():
                 pass
         except Exception as exc:
@@ -293,14 +388,19 @@ def fallback_to_sqlite(error: Exception) -> bool:
             "(mediflow.db). The failed request is not retried.",
             type(error).__name__,
         )
+        _start_failback_monitor()
         return True
 
 
 def dispose_engine() -> None:
+    _stop_failback_monitor()
     with _engine_lock:
         if engine is not None:
             engine.dispose()
             logger.info("Database connection pool disposed.")
+        for retired_engine in _retired_engines:
+            retired_engine.dispose()
+        _retired_engines.clear()
 
 
 def get_db() -> Generator[Session, None, None]:

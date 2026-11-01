@@ -161,7 +161,7 @@ ${activeFacility?.id || 'fac_apex'},MED-002,LOT-SAMPLE-02,2026-12-15,50,VIAL,Ape
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Facility-Batch Inventory</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Inventory</h1>
             {summary && (
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
                 summary.data_freshness_status === 'FRESH'

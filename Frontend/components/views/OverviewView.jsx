@@ -1,217 +1,268 @@
 'use client';
-import React, { useState } from 'react';
-import { 
-  AlertTriangle, 
-  Package, 
-  TrendingDown, 
-  ArrowLeftRight, 
-  Bot, 
-  Sparkles, 
-  CheckCircle, 
+import React from 'react';
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  Bot,
+  Building2,
+  CheckCircle2,
+  Package,
   ShieldCheck,
-  RefreshCw
+  TrendingDown,
 } from 'lucide-react';
-import { RiskBadge, StatusBadge } from '../Badges';
+import { RiskBadge } from '../Badges';
 
-export function OverviewView({ 
-  overview, 
-  risks = [], 
-  opportunities = [], 
-  proposals = [], 
+export function OverviewView({
+  overview,
+  risks = [],
+  opportunities = [],
+  proposals = [],
   onRunAgentCycle,
   isAgentRunning,
   agentResult,
-  onNavigateTab
+  onNavigateTab,
 }) {
-  const stockoutRisks = risks.filter(r => r.risk_type === 'STOCKOUT_RISK');
-  const expiryRisks = risks.filter(r => r.risk_type === 'EXPIRY_RISK');
+  const stockoutRisks = risks.filter((risk) => risk.risk_type === 'STOCKOUT_RISK');
+  const expiryRisks = risks.filter((risk) => risk.risk_type === 'EXPIRY_RISK');
+  const pendingApprovals = proposals.filter((proposal) =>
+    proposal.status?.includes('PENDING') || proposal.status === 'PROPOSED'
+  );
+
+  const summaryCards = [
+    {
+      label: 'Facilities',
+      value: overview?.total_facilities ?? 0,
+      note: 'In your network',
+      icon: Building2,
+      tone: 'slate',
+    },
+    {
+      label: 'Medicines',
+      value: overview?.monitored_products ?? 0,
+      note: 'Being monitored',
+      icon: Package,
+      tone: 'slate',
+    },
+    {
+      label: 'Low stock alerts',
+      value: overview?.active_stockout_risks ?? stockoutRisks.length,
+      note: 'Need attention',
+      icon: AlertTriangle,
+      tone: 'amber',
+    },
+    {
+      label: 'Expiry alerts',
+      value: overview?.active_expiry_risks ?? expiryRisks.length,
+      note: 'Batches at risk',
+      icon: TrendingDown,
+      tone: 'amber',
+    },
+    {
+      label: 'Available to share',
+      value: overview?.transferable_surplus_units ?? 0,
+      note: 'Medicine units',
+      icon: ArrowLeftRight,
+      tone: 'green',
+    },
+    {
+      label: 'Completed transfers',
+      value: overview?.completed_redistributions ?? 0,
+      note: 'Received and recorded',
+      icon: CheckCircle2,
+      tone: 'green',
+    },
+  ];
+
+  const cardTones = {
+    slate: 'bg-slate-100 text-slate-600',
+    amber: 'bg-amber-50 text-amber-700',
+    green: 'bg-emerald-50 text-emerald-700',
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Page Title */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-7">
+      <section className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Network Command Center</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time multi-facility inventory monitoring, automated surplus matching, and verified custody tracking.
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">
+            Network overview
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+            Medicine supply at a glance
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            See what needs attention, find safe ways to share stock, and follow each transfer.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={onRunAgentCycle}
-            disabled={isAgentRunning}
-            className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-md shadow-sm transition disabled:opacity-50"
-          >
-            <Bot className={`w-4 h-4 ${isAgentRunning ? 'animate-spin' : ''}`} />
-            <span>{isAgentRunning ? 'Orchestrating Agents...' : 'Run Agentic Intelligence Cycle'}</span>
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={onRunAgentCycle}
+          disabled={isAgentRunning}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-900 disabled:cursor-wait disabled:opacity-60"
+        >
+          <Bot className="h-4 w-4" />
+          {isAgentRunning ? 'Checking supplies…' : 'Run supply check'}
+        </button>
+      </section>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-medium text-slate-500">Participating Facilities</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{overview?.total_facilities ?? 4}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Hospitals & Pharmacies</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-sm">
-          <div className="text-[11px] font-medium text-slate-500">Monitored Medicines</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{overview?.monitored_products ?? 16}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Multi-batch catalog</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-lg border border-red-200 bg-red-50/20 shadow-sm">
-          <div className="text-[11px] font-medium text-red-700">Stockout Risk Facilities</div>
-          <div className="text-2xl font-bold text-red-600 mt-1">{overview?.active_stockout_risks ?? stockoutRisks.length}</div>
-          <div className="text-[10px] text-red-500 mt-1">Critical threshold breaches</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-lg border border-amber-200 bg-amber-50/20 shadow-sm">
-          <div className="text-[11px] font-medium text-amber-800">At-Risk Expiry Batches</div>
-          <div className="text-2xl font-bold text-amber-700 mt-1">{overview?.active_expiry_risks ?? expiryRisks.length}</div>
-          <div className="text-[10px] text-amber-600 mt-1">Unconsumed before expiry</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-lg border border-blue-200 bg-blue-50/20 shadow-sm">
-          <div className="text-[11px] font-medium text-blue-700">Transferable Surplus</div>
-          <div className="text-2xl font-bold text-blue-700 mt-1">{overview?.transferable_surplus_units ?? 350}</div>
-          <div className="text-[10px] text-blue-500 mt-1">Units exceeding 37d buffer</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/20 shadow-sm">
-          <div className="text-[11px] font-medium text-emerald-800">Verified Transfers</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">{overview?.completed_redistributions ?? 0}</div>
-          <div className="text-[10px] text-emerald-600 mt-1">Ledger confirmed receipts</div>
-        </div>
-      </div>
-
-      {/* Multi-Agent Orchestration / Gemini Explanation Banner */}
-      {agentResult && (
-        <div className="bg-white rounded-lg border border-indigo-200 shadow-sm p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-indigo-100 pb-2.5">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
-                LangGraph Multi-Agent Orchestration & Gemini Synthesis
-              </h2>
-            </div>
-            <div className="flex items-center space-x-2 text-[10px]">
-              <span className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded border border-indigo-200">
-                Workflow: {agentResult.workflow_status}
-              </span>
-              <span className="bg-slate-100 text-slate-700 font-medium px-2 py-0.5 rounded border border-slate-200">
-                Source: {agentResult.agent_reasoning?.source || 'GEMINI'}
-              </span>
-            </div>
+      <section aria-label="Network summary">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Today at a glance</h2>
+            <p className="mt-0.5 text-xs text-slate-500">A simple summary of your network</p>
           </div>
-
-          <div className="bg-indigo-50/40 p-3 rounded-md text-xs text-indigo-900 leading-relaxed font-sans">
-            {agentResult.agent_reasoning?.analysis}
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-            <span>Agents involved: Inventory Monitoring, Demand Forecasting, Expiry & Risk, Supply Optimisation.</span>
-            {agentResult.pause_for_human_approval && (
-              <button 
-                onClick={() => onNavigateTab('approvals')}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline"
+          {pendingApprovals.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('approvals')}
+              className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+            >
+              {pendingApprovals.length} approvals to review
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {summaryCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <article
+                key={card.label}
+                className="flex min-h-[112px] items-center gap-4 rounded-xl border border-slate-200 bg-white p-4"
               >
-                Inspect pending approvals →
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${cardTones[card.tone]}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-600">{card.label}</p>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-semibold tabular-nums tracking-tight text-slate-950">
+                      {card.value.toLocaleString()}
+                    </span>
+                    <span className="truncate text-xs text-slate-500">{card.note}</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {agentResult && (
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800">
+                <Bot className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Supply check results</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Status: {agentResult.workflow_status} · Source: {agentResult.agent_reasoning?.source || 'System'}
+                </p>
+              </div>
+            </div>
+            {agentResult.pause_for_human_approval && (
+              <button
+                type="button"
+                onClick={() => onNavigateTab('approvals')}
+                className="text-left text-sm font-medium text-emerald-800 hover:text-emerald-950 sm:text-right"
+              >
+                Review approvals
               </button>
             )}
           </div>
-        </div>
+          {agentResult.agent_reasoning?.analysis && (
+            <p className="mt-4 border-t border-slate-100 pt-4 text-sm leading-6 text-slate-700">
+              {agentResult.agent_reasoning.analysis}
+            </p>
+          )}
+        </section>
       )}
 
-      {/* Critical Risk Queues & Matched Opportunities Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Urgent Shortage Queue */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-red-500" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Active Shortage Alerts</h2>
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Low stock alerts</h2>
+              <p className="mt-1 text-xs text-slate-500">Facilities that may run short soon</p>
             </div>
-            <button 
+            <button
+              type="button"
               onClick={() => onNavigateTab('risks')}
-              className="text-[11px] font-medium text-emerald-700 hover:text-emerald-800"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
             >
               View all ({stockoutRisks.length})
             </button>
           </div>
-
           <div className="divide-y divide-slate-100">
-            {stockoutRisks.slice(0, 4).map((risk, idx) => (
-              <div key={idx} className="p-3.5 hover:bg-slate-50/60 transition flex items-start justify-between">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-slate-900">{risk.product_name}</span>
+            {stockoutRisks.slice(0, 4).map((risk, index) => (
+              <div key={risk.id || `${risk.product_id}-${risk.facility_id}-${index}`} className="flex items-start justify-between gap-4 px-5 py-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900">{risk.product_name}</p>
                     <RiskBadge level={risk.risk_level} />
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{risk.facility_name}</p>
-                  <p className="text-[11px] text-slate-600 mt-1">{risk.explanation?.summary}</p>
+                  <p className="mt-1 text-xs text-slate-500">{risk.facility_name}</p>
+                  {risk.explanation?.summary && (
+                    <p className="mt-2 text-xs leading-5 text-slate-600">{risk.explanation.summary}</p>
+                  )}
                 </div>
-                <div className="text-right shrink-0 ml-4">
-                  <div className="text-xs font-bold text-red-600">{risk.days_of_cover} days</div>
-                  <div className="text-[10px] text-slate-400">cover remaining</div>
-                </div>
+                <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-amber-800">
+                  {risk.days_of_cover} <span className="text-xs font-normal text-slate-500">days left</span>
+                </p>
               </div>
             ))}
             {stockoutRisks.length === 0 && (
-              <div className="p-6 text-center text-xs text-slate-500">No active stockout threshold breaches.</div>
+              <p className="px-5 py-8 text-center text-sm text-slate-500">No low stock alerts right now.</p>
             )}
           </div>
-        </div>
+        </article>
 
-        {/* Immediate Redistribution Matches */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <div className="flex items-center space-x-2">
-              <ArrowLeftRight className="w-4 h-4 text-emerald-600" />
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Safe Surplus Matches</h2>
+        <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Safe stock matches</h2>
+              <p className="mt-1 text-xs text-slate-500">Surplus that could help another facility</p>
             </div>
-            <button 
+            <button
+              type="button"
               onClick={() => onNavigateTab('opportunities')}
-              className="text-[11px] font-medium text-emerald-700 hover:text-emerald-800"
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
             >
               View all ({opportunities.length})
             </button>
           </div>
-
           <div className="divide-y divide-slate-100">
-            {opportunities.slice(0, 4).map((opp, idx) => (
-              <div key={idx} className="p-3.5 hover:bg-slate-50/60 transition flex items-start justify-between">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-slate-900">{opp.product_name}</span>
-                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium border border-blue-200">
-                      {opp.matched_quantity} {opp.unit}
+            {opportunities.slice(0, 4).map((opportunity, index) => (
+              <div key={`${opportunity.product_id}-${opportunity.source_facility_id}-${opportunity.destination_facility_id}-${index}`} className="flex items-start justify-between gap-4 px-5 py-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900">{opportunity.product_name}</p>
+                    <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800">
+                      {opportunity.matched_quantity} {opportunity.unit}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-600 mt-1 flex items-center space-x-1">
-                    <span className="font-medium text-slate-700">{opp.source_facility_name}</span>
-                    <span>→</span>
-                    <span className="font-medium text-slate-700">{opp.destination_facility_name}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{opp.destination_rationale?.summary}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    {opportunity.source_facility_name} <span className="px-1 text-slate-400">to</span> {opportunity.destination_facility_name}
+                  </p>
+                  {opportunity.destination_rationale?.summary && (
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{opportunity.destination_rationale.summary}</p>
+                  )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => onNavigateTab('opportunities')}
-                  className="text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-2.5 py-1 rounded border border-emerald-200 transition shrink-0 ml-4"
+                  className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  Propose
+                  Create request
                 </button>
               </div>
             ))}
             {opportunities.length === 0 && (
-              <div className="p-6 text-center text-xs text-slate-500">No surplus-to-need pairings currently active.</div>
+              <p className="px-5 py-8 text-center text-sm text-slate-500">No safe stock matches right now.</p>
             )}
           </div>
-        </div>
-      </div>
+        </article>
+      </section>
     </div>
   );
 }
-

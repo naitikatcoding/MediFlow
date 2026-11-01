@@ -45,9 +45,9 @@ export function ApprovalsView({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Transfer Governance & Dual Approvals</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Transfer approvals</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Level 2 Agentic Governance: Transfers require explicit authorization from both Source and Destination clinical leads prior to atomic stock reservation.
+            Both facilities must approve a transfer before stock is reserved.
           </p>
         </div>
 
@@ -174,4 +174,3 @@ export function ApprovalsView({
     </div>
   );
 }
-

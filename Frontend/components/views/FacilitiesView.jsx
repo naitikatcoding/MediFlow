@@ -38,7 +38,7 @@ export function FacilitiesView({ facilities = [], inventory = [], risks = [], on
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Participating Facility Network</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Facilities</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Registered hospitals, diagnostic clinics, and regional pharmacies with verified storage capabilities.
           </p>

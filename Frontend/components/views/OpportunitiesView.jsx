@@ -23,9 +23,9 @@ export function OpportunitiesView({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Redistribution Matching Engine</h1>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Stock matches</h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Deterministic pairing of verified surplus with urgent destination shortage, constrained by safety-stock buffers and facility storage capabilities.
+          Review safe stock that can be shared with a facility that needs it.
         </p>
       </div>
 
@@ -153,4 +153,3 @@ export function OpportunitiesView({
     </div>
   );
 }
-

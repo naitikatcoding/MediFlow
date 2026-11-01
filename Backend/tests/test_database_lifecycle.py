@@ -1,4 +1,5 @@
 import pytest
+import threading
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
@@ -68,6 +69,80 @@ def test_legacy_audit_table_is_upgraded_for_correlation_ids():
             assert event.correlation_id == "proposal-id"
     finally:
         legacy_engine.dispose()
+
+
+def test_failback_monitor_retries_and_switches_sessions_to_yugabyte(monkeypatch):
+    previous_engine = database.engine
+    previous_url = database.database_url
+    previous_primary_url = database.primary_database_url
+    previous_yugabyte_state = database.is_live_yugabyte
+    previous_retired_engines = list(database._retired_engines)
+    fallback_engine = create_engine("sqlite://")
+    remote_engine = None
+    first_probe = threading.Event()
+    available = threading.Event()
+    probe_count = 0
+    primary_url = make_url(
+        "postgresql+psycopg2://test:test@cluster.invalid:5433/yugabyte"
+    )
+
+    def create_recovering_yugabyte_engine(_url):
+        nonlocal probe_count, remote_engine
+        probe_count += 1
+        if not available.is_set():
+            first_probe.set()
+            raise OperationalError("connect", {}, OSError("database unavailable"))
+        remote_engine = create_engine("sqlite://")
+        return remote_engine
+
+    try:
+        monkeypatch.setattr(
+            database.settings,
+            "DATABASE_URL",
+            "postgresql+psycopg2://test:test@cluster.invalid:5433/yugabyte",
+        )
+        monkeypatch.setattr(database.settings, "APP_ENV", "development")
+        monkeypatch.setattr(database.settings, "DB_SQLITE_FALLBACK", True)
+        monkeypatch.setattr(database, "_failback_retry_interval_seconds", 0.02)
+        monkeypatch.setattr(
+            database, "_create_yugabyte_engine", create_recovering_yugabyte_engine
+        )
+        monkeypatch.setattr(database, "engine", fallback_engine)
+        monkeypatch.setattr(
+            database, "database_url", make_url("sqlite://")
+        )
+        monkeypatch.setattr(database, "primary_database_url", primary_url)
+        monkeypatch.setattr(database, "is_live_yugabyte", False)
+        database._retired_engines.clear()
+        database.SessionLocal.configure(bind=fallback_engine)
+
+        database._start_failback_monitor()
+
+        assert first_probe.wait(timeout=2)
+        assert not database.is_yugabyte_active()
+        available.set()
+
+        for _ in range(100):
+            if database.is_yugabyte_active():
+                break
+            threading.Event().wait(0.02)
+
+        assert database.is_yugabyte_active()
+        assert remote_engine is not None
+        assert database.SessionLocal.kw["bind"] is remote_engine
+        with fallback_engine.connect() as connection:
+            assert connection.execute(text("SELECT 1")).scalar_one() == 1
+    finally:
+        database._stop_failback_monitor()
+        if remote_engine is not None:
+            remote_engine.dispose()
+        fallback_engine.dispose()
+        database._retired_engines[:] = previous_retired_engines
+        database.engine = previous_engine
+        database.database_url = previous_url
+        database.primary_database_url = previous_primary_url
+        database.is_live_yugabyte = previous_yugabyte_state
+        database.SessionLocal.configure(bind=previous_engine)
 
 
 def test_yugabyte_startup_failure_activates_working_sqlite_fallback(monkeypatch, tmp_path):

@@ -128,7 +128,7 @@ export function TransfersView({ transfers = [], onNavigateTab, activeUser, onRef
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Transfers & QR Traceability</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Transfer tracking</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Physical custody tracking verified by opaque serialized QR labels. Every dispatch and receipt updates the auditable ledger.
           </p>

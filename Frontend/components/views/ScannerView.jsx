@@ -162,7 +162,7 @@ export function ScannerView({ activeFacility, activeUser, onScanSuccess }) {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">QR Scan & Verification Terminal</h1>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Scan a transfer QR code</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Authoritative physical custody handoff terminal. Validates opaque serialized tokens, prevents replay attacks, checks facility permissions, and enforces multi-category reconciliation on the immutable ledger.
         </p>

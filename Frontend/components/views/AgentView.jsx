@@ -152,7 +152,7 @@ export function AgentView({ facilities = [], products = [], onNavigateTab }) {
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <Bot className="w-6 h-6 text-emerald-400" />
-            <h1 className="text-xl font-bold tracking-tight">Autonomous Supply Coordination & Agentic Traces</h1>
+            <h1 className="text-xl font-bold tracking-tight">Supply workflows</h1>
           </div>
           <p className="text-xs text-slate-300 max-w-2xl">
             Bounded multi-agent LangGraph orchestration with deterministic backend authority. 
@@ -480,4 +480,3 @@ export function AgentView({ facilities = [], products = [], onNavigateTab }) {
     </div>
   );
 }
-

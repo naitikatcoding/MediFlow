@@ -14,6 +14,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button,
+select,
+input,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #047857;
+  outline-offset: 2px;
+}
+
 /* Custom scrollbars for clean clinical dashboard tables */
 ::-webkit-scrollbar {
   width: 6px;
@@ -32,4 +47,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-

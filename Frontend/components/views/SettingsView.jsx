@@ -48,7 +48,7 @@ export function SettingsView({
     <div className="max-w-4xl space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">System Configuration & Demonstration Hub</h1>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Settings and demo controls</h1>
         <p className="text-xs text-slate-500 mt-0.5">
           Inspect backend connectivity, external AI adapter state, and trigger deterministic demonstration scenarios.
         </p>
