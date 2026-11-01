@@ -1,350 +1,268 @@
-'use client';
-import React, { useState, useEffect, useCallback } from 'react';
-import { MessageCircle, X } from 'lucide-react';
-import { Navbar } from '../components/Navbar';
-import { Sidebar } from '../components/Sidebar';
-import { OverviewView } from '../components/views/OverviewView';
-import { RisksView } from '../components/views/RisksView';
-import { OpportunitiesView } from '../components/views/OpportunitiesView';
-import { ApprovalsView } from '../components/views/ApprovalsView';
-import { TransfersView } from '../components/views/TransfersView';
-import { ScannerView } from '../components/views/ScannerView';
-import { InventoryView } from '../components/views/InventoryView';
-import { ForecastView } from '../components/views/ForecastView';
-import { AuditView } from '../components/views/AuditView';
-import { AgentView } from '../components/views/AgentView';
-import { FacilitiesView } from '../components/views/FacilitiesView';
-import { DataQualityView } from '../components/views/DataQualityView';
-import { SettingsView } from '../components/views/SettingsView';
-import { ChatView } from '../components/views/ChatView';
-import { api } from '../lib/api';
+import Link from 'next/link';
+import {
+  ArrowRight,
+  Boxes,
+  Building2,
+  Check,
+  ScanLine,
+  Shield,
+  Sparkles,
+  TrendingDown,
+} from 'lucide-react';
+import { ScrollReveal } from '../components/landing/ScrollReveal';
 
-export default function DashboardPage() {
-  const [currentTab, setCurrentTab] = useState('overview');
-  const [facilities, setFacilities] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [activeFacility, setActiveFacility] = useState(null);
-  const [activeUser, setActiveUser] = useState(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+export const metadata = {
+  title: 'MediFlow — Medicine supply, made clear',
+  description:
+    'A clearer way to manage medicine inventory, anticipate shortages, reduce expiry waste, and coordinate safe redistribution.',
+};
 
-  // Operational Data States
-  const [overview, setOverview] = useState(null);
-  const [risks, setRisks] = useState([]);
-  const [opportunitiesData, setOpportunitiesData] = useState({ accepted_opportunities: [], rejected_candidates: [] });
-  const [proposals, setProposals] = useState([]);
-  const [transfers, setTransfers] = useState([]);
-  const [inventory, setInventory] = useState([]);
+const capabilities = [
+  {
+    icon: Boxes,
+    title: 'Know what is on hand',
+    description:
+      'See medicine and batch-level inventory across facilities, with the details teams need to make informed decisions.',
+  },
+  {
+    icon: TrendingDown,
+    title: 'Spot risks sooner',
+    description:
+      'Bring low-stock signals, demand forecasts, and approaching expiries into one calm, actionable view.',
+  },
+  {
+    icon: Building2,
+    title: 'Move surplus safely',
+    description:
+      'Find potential facility-to-facility matches, then coordinate reviews and approvals before anything moves.',
+  },
+];
 
-  // Agent State
-  const [isAgentRunning, setIsAgentRunning] = useState(false);
-  const [agentResult, setAgentResult] = useState(null);
+const steps = [
+  {
+    number: '01',
+    title: 'See the whole picture',
+    description: 'Bring facility stock, batches, and demand into a shared operational view.',
+  },
+  {
+    number: '02',
+    title: 'Understand what needs attention',
+    description: 'Surface shortage and expiry risks while there is still time to respond.',
+  },
+  {
+    number: '03',
+    title: 'Coordinate with confidence',
+    description: 'Review redistribution opportunities with the right people and clear approvals.',
+  },
+  {
+    number: '04',
+    title: 'Keep every handoff visible',
+    description: 'Follow transfers through dispatch and receipt with QR-supported tracking.',
+  },
+];
 
-  // Status flags
-  const [isLoading, setIsLoading] = useState(true);
-  const [isResetting, setIsResetting] = useState(false);
-  const [isCreatingProposal, setIsCreatingProposal] = useState(false);
+const operatingFacts = [
+  { value: '04', label: 'stages from signal to receipt' },
+  { value: '02', label: 'source and destination approvals' },
+  { value: '01', label: 'QR-traceable transfer record' },
+];
 
-  // Fetch initial demo context & metadata
-  const loadContext = useCallback(async () => {
-    try {
-      const ctx = await api.getDemoContext();
-      setFacilities(ctx.facilities || []);
-      setUsers(ctx.users || []);
-      setActiveFacility(current =>
-        ctx.facilities?.find(facility => facility.id === current?.id) ||
-        ctx.facilities?.[0] ||
-        null
-      );
-      setActiveUser(current =>
-        ctx.users?.find(user => user.id === current?.id) ||
-        ctx.users?.[0] ||
-        null
-      );
-      const prods = await api.getProducts();
-      setProducts(prods || []);
-    } catch (err) {
-      console.error('Error loading context:', err);
-    }
-  }, []);
-
-  // Refresh operational state
-  const refreshData = useCallback(async () => {
-    try {
-      const [ov, rsk, opp, prp, trn, inv] = await Promise.all([
-        api.getOverview().catch(() => null),
-        api.getRisks().catch(() => []),
-        api.getOpportunities().catch(() => ({ accepted_opportunities: [], rejected_candidates: [] })),
-        api.getProposals().catch(() => []),
-        api.getTransfers().catch(() => []),
-        api.getInventory().catch(() => [])
-      ]);
-
-      if (ov) setOverview(ov);
-      setRisks(rsk || []);
-      setOpportunitiesData(opp || { accepted_opportunities: [], rejected_candidates: [] });
-      setProposals(prp || []);
-      setTransfers(trn || []);
-      setInventory(inv || []);
-    } catch (err) {
-      console.error('Error refreshing dashboard data:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadContext().then(() => refreshData());
-  }, [loadContext, refreshData]);
-
-  useEffect(() => {
-    if (currentTab === 'chat') setAssistantOpen(false);
-  }, [currentTab]);
-
-  // Trigger Multi-Agent LangGraph cycle
-  const handleRunAgentCycle = async () => {
-    setIsAgentRunning(true);
-    try {
-      const res = await api.runAgentCycle({
-        facility_id: activeFacility?.id
-      });
-      setAgentResult(res);
-      await refreshData();
-    } catch (err) {
-      alert(`Multi-agent cycle error: ${err.message}`);
-    } finally {
-      setIsAgentRunning(false);
-    }
-  };
-
-  // Create proposal from accepted opportunity
-  const handleCreateProposal = async (opp) => {
-    setIsCreatingProposal(true);
-    try {
-      await api.createProposal(opp);
-      setProposals(await api.getProposals());
-      setCurrentTab('approvals');
-    } finally {
-      setIsCreatingProposal(false);
-    }
-  };
-
-  // Submit Human Approval
-  const handleApprove = async (payload) => {
-    await api.recordApproval(payload.proposal_id, payload);
-    await refreshData();
-  };
-
-  // Reset demo
-  const handleResetDemo = async () => {
-    if (!confirm('Reset demo to initial deterministic baseline?')) return;
-    setIsResetting(true);
-    try {
-      await api.resetDemo();
-      await loadContext();
-      await refreshData();
-      setAgentResult(null);
-    } catch (err) {
-      alert(`Reset error: ${err.message}`);
-    } finally {
-      setIsResetting(false);
-    }
-  };
-
-  // Simulate Stock Shock before reservation
-  const handleSimulateStockChange = async () => {
-    try {
-      const res = await api.simulateStockChange({
-        product_code: 'MED-003',
-        facility_key: 'apex',
-        new_usable_quantity: 5
-      });
-      alert(res.message);
-      await refreshData();
-    } catch (err) {
-      alert(`Stock shock simulation error: ${err.message}`);
-    }
-  };
-
-  const badgeCounts = {
-    risks: risks.length,
-    opportunities: opportunitiesData.accepted_opportunities?.length || 0,
-    approvals: proposals.filter(p => p.status.includes('PENDING') || p.status === 'PROPOSED').length,
-    transfers: transfers.filter(t => t.status === 'IN_TRANSIT' || t.status === 'READY_FOR_DISPATCH').length
-  };
-
+function Brand() {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <Navbar
-        facilities={facilities}
-        users={users}
-        activeFacility={activeFacility}
-        activeUser={activeUser}
-        onFacilityChange={setActiveFacility}
-        onUserChange={setActiveUser}
-        onResetDemo={handleResetDemo}
-        isResetting={isResetting}
-        onOpenMenu={() => setMobileNavOpen(true)}
-      />
+    <Link href="/" className="inline-flex items-center gap-2.5" aria-label="MediFlow home">
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-800 text-white">
+        <Shield className="h-[18px] w-[18px]" strokeWidth={2.2} />
+      </span>
+      <span className="text-[15px] font-semibold tracking-tight text-slate-900">
+        MediFlow
+      </span>
+    </Link>
+  );
+}
 
-      <div className="flex min-h-0 flex-1">
-        <Sidebar
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
-          counts={badgeCounts}
-          mobileOpen={mobileNavOpen}
-          onCloseMobile={() => setMobileNavOpen(false)}
-        />
-
-        <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
-          {isLoading ? (
-            <div className="h-96 flex flex-col items-center justify-center space-y-3 text-slate-400">
-              <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-xs">Connecting to operational inventory ledger...</p>
-            </div>
-          ) : (
-            <>
-              {currentTab === 'overview' && (
-                <OverviewView
-                  overview={overview}
-                  risks={risks}
-                  opportunities={opportunitiesData.accepted_opportunities}
-                  proposals={proposals}
-                  onRunAgentCycle={handleRunAgentCycle}
-                  isAgentRunning={isAgentRunning}
-                  agentResult={agentResult}
-                  onNavigateTab={setCurrentTab}
-                />
-              )}
-
-              {currentTab === 'facilities' && (
-                <FacilitiesView
-                  facilities={facilities}
-                  inventory={inventory}
-                  risks={risks}
-                  onNavigateTab={setCurrentTab}
-                  onSelectFacility={setActiveFacility}
-                />
-              )}
-
-              {currentTab === 'risks' && (
-                <RisksView risks={risks} facilities={facilities} />
-              )}
-
-              {currentTab === 'opportunities' && (
-                <OpportunitiesView
-                  opportunitiesData={opportunitiesData}
-                  onCreateProposal={handleCreateProposal}
-                  isCreating={isCreatingProposal}
-                />
-              )}
-
-              {currentTab === 'approvals' && (
-                <ApprovalsView
-                  proposals={proposals}
-                  activeFacility={activeFacility}
-                  activeUser={activeUser}
-                  onApprove={handleApprove}
-                  onSimulateStockChange={handleSimulateStockChange}
-                  onNavigateTab={setCurrentTab}
-                />
-              )}
-
-              {currentTab === 'transfers' && (
-                <TransfersView
-                  transfers={transfers}
-                  onNavigateTab={setCurrentTab}
-                  activeUser={activeUser}
-                  onRefreshTransfers={refreshData}
-                />
-              )}
-
-              {currentTab === 'scanner' && (
-                <ScannerView
-                  activeFacility={activeFacility}
-                  activeUser={activeUser}
-                  onScanSuccess={refreshData}
-                />
-              )}
-
-              {currentTab === 'inventory' && (
-                <InventoryView
-                  inventory={inventory}
-                  facilities={facilities}
-                  activeFacility={activeFacility}
-                  activeUser={activeUser}
-                  onRefresh={refreshData}
-                />
-              )}
-
-              {currentTab === 'forecasts' && (
-                <ForecastView facilities={facilities} products={products} />
-              )}
-
-              {currentTab === 'agents' && (
-                <AgentView
-                  facilities={facilities}
-                  products={products}
-                  onNavigateTab={setCurrentTab}
-                />
-              )}
-
-              {currentTab === 'chat' && (
-                <ChatView activeFacility={activeFacility} />
-              )}
-
-              {currentTab === 'data-quality' && (
-                <DataQualityView
-                  facilities={facilities}
-                  onNavigateTab={setCurrentTab}
-                />
-              )}
-
-              {currentTab === 'audit' && (
-                <AuditView />
-              )}
-
-              {currentTab === 'settings' && (
-                <SettingsView
-                  activeFacility={activeFacility}
-                  activeUser={activeUser}
-                  facilities={facilities}
-                  users={users}
-                  onFacilityChange={setActiveFacility}
-                  onUserChange={setActiveUser}
-                  onResetDemo={handleResetDemo}
-                  isResetting={isResetting}
-                  onRefreshData={refreshData}
-                />
-              )}
-            </>
-          )}
-        </main>
-      </div>
-
-      {currentTab !== 'chat' && (
-        <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3 sm:bottom-7 sm:right-7">
-          {assistantOpen && (
-            <div className="h-[min(42rem,calc(100dvh-7rem))] w-[min(27rem,calc(100vw-2.5rem))] animate-in slide-in-from-bottom-3 fade-in duration-200">
-              <ChatView
-                activeFacility={activeFacility}
-                compact
-                onClose={() => setAssistantOpen(false)}
-              />
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setAssistantOpen((open) => !open)}
-            aria-label={assistantOpen ? 'Close MediFlow assistant' : 'Open MediFlow assistant'}
-            aria-expanded={assistantOpen}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-800 text-white shadow-lg shadow-emerald-950/20 transition duration-200 hover:scale-105 hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300 motion-reduce:transition-none"
+export default function LandingPage() {
+  return (
+    <main className="overflow-hidden bg-[#fbfcfa] text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#fbfcfa]/90 backdrop-blur-md">
+        <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Brand />
+          <nav aria-label="Main navigation" className="hidden items-center gap-8 md:flex">
+            <a href="#platform" className="text-[13px] font-medium text-slate-600 transition hover:text-emerald-800">Platform</a>
+            <a href="#how-it-works" className="text-[13px] font-medium text-slate-600 transition hover:text-emerald-800">How it works</a>
+            <a href="#principles" className="text-[13px] font-medium text-slate-600 transition hover:text-emerald-800">Our approach</a>
+          </nav>
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
           >
-            {assistantOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-          </button>
+            Get started
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
-      )}
-    </div>
+      </header>
+
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-5 pb-14 pt-20 sm:px-8 sm:pb-16 sm:pt-28 lg:pt-32">
+          <div className="mx-auto max-w-4xl text-center">
+            <ScrollReveal className="mx-auto max-w-4xl">
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-3 py-1.5 text-[11px] font-medium text-emerald-900 shadow-sm shadow-emerald-950/[0.03]">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                Medicine supply, made clear
+              </div>
+              <h1 className="mx-auto max-w-4xl text-[2.9rem] font-semibold leading-[1.06] tracking-[-0.055em] text-slate-950 sm:text-6xl lg:text-[4.6rem]">
+                A clearer path from
+                <span className="block text-emerald-800">supply to care.</span>
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-7 text-slate-600 sm:text-base">
+                MediFlow helps healthcare teams see medicine inventory clearly, anticipate shortages and expiry, and coordinate safe redistribution across facilities.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
+                >
+                  Get started
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a
+                  href="#platform"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-slate-700 transition hover:bg-white"
+                >
+                  Explore the platform
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </div>
+              <div className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-700" />Inventory visibility</span>
+                <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-700" />Human-led approvals</span>
+                <span className="inline-flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-700" />Traceable transfers</span>
+              </div>
+            </ScrollReveal>
+          </div>
+
+          <div className="mx-auto mt-16 grid max-w-4xl grid-cols-1 divide-y divide-slate-200 border-y border-slate-200 bg-white/70 sm:mt-20 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {operatingFacts.map((fact, index) => (
+              <ScrollReveal
+                as="div"
+                key={fact.value}
+                delay={index * 100}
+                className="px-5 py-5 text-center sm:px-7 sm:py-6"
+              >
+                <p className="text-3xl font-semibold tracking-[-0.05em] text-emerald-900 sm:text-4xl">
+                  {fact.value}
+                </p>
+                <p className="mt-1.5 text-[11px] font-medium text-slate-600 sm:text-xs">
+                  {fact.label}
+                </p>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="platform" className="border-y border-slate-200/80 bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+          <ScrollReveal className="max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-800">A clearer operating picture</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-[2.6rem]">
+              Less searching. Better decisions.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600">
+              Bring the signals that matter together, so teams can focus on getting essential medicines where they are needed.
+            </p>
+          </ScrollReveal>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {capabilities.map(({ icon: Icon, title, description }, index) => (
+              <ScrollReveal as="article" key={title} delay={index * 100} className="rounded-2xl border border-slate-200 bg-[#fbfcfa] p-6 sm:p-7">
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                  index === 1 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
+                }`}>
+                  <Icon className="h-[18px] w-[18px]" />
+                </span>
+                <h3 className="mt-5 text-[15px] font-semibold text-slate-900">{title}</h3>
+                <p className="mt-2 text-[13px] leading-6 text-slate-600">{description}</p>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+        <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+          <ScrollReveal>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-800">How it works</p>
+            <h2 className="mt-3 max-w-md text-3xl font-semibold leading-tight tracking-[-0.04em] text-slate-950 sm:text-[2.6rem]">
+              From a signal to a tracked handoff.
+            </h2>
+            <p className="mt-4 max-w-md text-sm leading-6 text-slate-600">
+              A practical workflow that keeps people in control while making the next step easier to see.
+            </p>
+            <Link
+              href="/dashboard"
+              className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
+            >
+              See MediFlow in action <ArrowRight className="h-4 w-4" />
+            </Link>
+          </ScrollReveal>
+          <div className="divide-y divide-slate-200 border-y border-slate-200">
+            {steps.map((step, index) => (
+              <ScrollReveal as="div" key={step.number} delay={index * 70} className="grid grid-cols-[2.75rem_1fr] gap-3 py-5 sm:grid-cols-[3.5rem_1fr] sm:gap-5 sm:py-6">
+                <span className="pt-0.5 text-xs font-semibold tracking-wide text-emerald-800">{step.number}</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
+                  <p className="mt-1.5 max-w-xl text-[13px] leading-6 text-slate-600">{step.description}</p>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="principles" className="bg-[#10251f] text-white">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 sm:py-16 md:grid-cols-[1fr_auto] md:items-center">
+          <ScrollReveal className="max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Built for responsible operations</p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+              Better visibility. People stay in control.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
+              MediFlow brings data and teams together. Transfer recommendations remain recommendations—review, approval, and custody are explicit parts of the process.
+            </p>
+          </ScrollReveal>
+          <ScrollReveal as="div" delay={120} className="flex flex-col gap-3 text-[12px] text-slate-200">
+            <span className="inline-flex items-center gap-2"><Shield className="h-4 w-4 text-emerald-300" />Human approval before movement</span>
+            <span className="inline-flex items-center gap-2"><ScanLine className="h-4 w-4 text-emerald-300" />QR-supported transfer tracking</span>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+        <ScrollReveal className="flex flex-col items-start justify-between gap-7 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-7 sm:p-10 md:flex-row md:items-center">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-800">Ready to take a look?</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-3xl">
+              Start with a clearer view of your supply.
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">Open the MediFlow dashboard—no account setup required.</p>
+          </div>
+          <Link
+            href="/dashboard"
+            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-5 text-sm font-semibold text-white transition hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
+          >
+            Get started <ArrowRight className="h-4 w-4" />
+          </Link>
+        </ScrollReveal>
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-6 sm:px-8 md:flex-row md:items-center md:justify-between">
+          <Brand />
+          <p className="text-[11px] text-slate-500">A clearer way to coordinate essential medicine supply.</p>
+          <Link href="/dashboard" className="text-xs font-semibold text-emerald-800 transition hover:text-emerald-950">
+            Go to dashboard
+          </Link>
+        </div>
+      </footer>
+    </main>
   );
 }
