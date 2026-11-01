@@ -3,8 +3,10 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
+from sqlalchemy.orm import Session
 
 from app.core import database
+from app.models.audit import AuditEvent
 
 
 def _temporary_sqlite_fallback(tmp_path):
@@ -18,6 +20,54 @@ def _temporary_sqlite_fallback(tmp_path):
     with fallback_engine.connect():
         pass
     return fallback_engine, fallback_url
+
+
+def test_legacy_audit_table_is_upgraded_for_correlation_ids():
+    legacy_engine = create_engine("sqlite://")
+    try:
+        with legacy_engine.begin() as connection:
+            connection.exec_driver_sql(
+                """
+                CREATE TABLE audit_events (
+                    id VARCHAR(36) PRIMARY KEY NOT NULL,
+                    organisation_id VARCHAR(36),
+                    facility_id VARCHAR(36),
+                    actor_id VARCHAR(64),
+                    action VARCHAR(64) NOT NULL,
+                    entity_type VARCHAR(64) NOT NULL,
+                    entity_id VARCHAR(64) NOT NULL,
+                    before_state JSON,
+                    after_state JSON,
+                    reason TEXT,
+                    created_at DATETIME
+                )
+                """
+            )
+
+        database.ensure_audit_correlation_schema(legacy_engine)
+        database.ensure_audit_correlation_schema(legacy_engine)
+
+        assert "correlation_id" in {
+            column["name"] for column in inspect(legacy_engine).get_columns("audit_events")
+        }
+        assert "ix_audit_correlation" in {
+            index["name"] for index in inspect(legacy_engine).get_indexes("audit_events")
+        }
+        with Session(legacy_engine) as session:
+            session.add(
+                AuditEvent(
+                    organisation_id=None,
+                    action="PROPOSAL_APPROVED",
+                    entity_type="TRANSFER_PROPOSAL",
+                    entity_id="proposal-id",
+                    correlation_id="proposal-id",
+                )
+            )
+            session.commit()
+            event = session.query(AuditEvent).one()
+            assert event.correlation_id == "proposal-id"
+    finally:
+        legacy_engine.dispose()
 
 
 def test_yugabyte_startup_failure_activates_working_sqlite_fallback(monkeypatch, tmp_path):

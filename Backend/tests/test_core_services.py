@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta, date
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.core.database import Base
+from app.api.routes.demo import get_demo_context
 from app.models.organization import Organisation, Facility, User, FacilityMembership
 from app.models.product import Product, Batch
 from app.models.inventory import FacilityBatchInventory, InventoryLedger
@@ -86,6 +87,23 @@ def test_usable_inventory_and_fefo_allocation(db_session):
     assert len(items) == 2
     assert items[0]["manufacturer_lot_number"] == "LOT-01"
     assert items[1]["manufacturer_lot_number"] == "LOT-02"
+
+
+def test_demo_context_only_lists_active_users(db_session):
+    session, ctx = db_session
+    inactive_user = User(
+        organisation_id=ctx["org"].id,
+        email="inactive@hospital.org",
+        name="Inactive User",
+        role="APPROVER",
+        status="INACTIVE",
+    )
+    session.add(inactive_user)
+    session.commit()
+
+    demo_context = get_demo_context(session)
+
+    assert inactive_user.id not in {user["id"] for user in demo_context["users"]}
 
 
 def test_matching_constraints_and_rejection_rationale(db_session):

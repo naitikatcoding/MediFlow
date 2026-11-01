@@ -248,6 +248,18 @@ class TestErrorResponsesDoNotLeakSecrets:
         assert "version" in health
         assert health.get("simulation_mode") is True
 
+    def test_configured_sqlite_is_not_reported_as_failover(self, monkeypatch):
+        from app import main
+
+        monkeypatch.setattr(main.settings, "DATABASE_URL", "sqlite:///./mediflow.db")
+        monkeypatch.setattr(main, "is_yugabyte_active", lambda: False)
+
+        health = main.compute_health_status()
+
+        assert health["database"]["engine"] == "sqlite"
+        assert health["database"]["configured_engine"] == "sqlite"
+        assert health["database"]["is_fallback"] is False
+
 
 class TestFacilityScopeEnforcement:
     """E-3: Inventory reads are scoped to facility_id — cross-facility data must not be exposed."""

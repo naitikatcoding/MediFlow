@@ -3,7 +3,7 @@ import threading
 import urllib.parse
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.engine import Engine, URL, make_url
 from sqlalchemy.exc import (
     DBAPIError,
@@ -96,6 +96,36 @@ def _ensure_sqlite_schema(sqlite_engine: Engine) -> None:
     import app.models
 
     Base.metadata.create_all(bind=sqlite_engine)
+    ensure_audit_correlation_schema(sqlite_engine)
+
+
+def ensure_audit_correlation_schema(active_engine: Engine) -> None:
+    from app.models.audit import AuditEvent
+
+    inspector = inspect(active_engine)
+    if not inspector.has_table(AuditEvent.__tablename__):
+        raise RuntimeError("The audit_events table is missing after schema creation.")
+
+    columns = {
+        column["name"] for column in inspector.get_columns(AuditEvent.__tablename__)
+    }
+    if "correlation_id" not in columns:
+        with active_engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE audit_events ADD COLUMN correlation_id VARCHAR(64)"
+            )
+
+    correlation_index = next(
+        (
+            index
+            for index in AuditEvent.__table__.indexes
+            if index.name == "ix_audit_correlation"
+        ),
+        None,
+    )
+    if correlation_index is None:
+        raise RuntimeError("The audit correlation index is missing from the model.")
+    correlation_index.create(bind=active_engine, checkfirst=True)
 
 
 def _bind_engine(active_engine: Engine, active_url: URL, yugabyte: bool) -> None:

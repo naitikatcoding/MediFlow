@@ -48,18 +48,22 @@ export default function DashboardPage() {
       const ctx = await api.getDemoContext();
       setFacilities(ctx.facilities || []);
       setUsers(ctx.users || []);
-      if (ctx.facilities?.length > 0 && !activeFacility) {
-        setActiveFacility(ctx.facilities[0]);
-      }
-      if (ctx.users?.length > 0 && !activeUser) {
-        setActiveUser(ctx.users[0]);
-      }
+      setActiveFacility(current =>
+        ctx.facilities?.find(facility => facility.id === current?.id) ||
+        ctx.facilities?.[0] ||
+        null
+      );
+      setActiveUser(current =>
+        ctx.users?.find(user => user.id === current?.id) ||
+        ctx.users?.[0] ||
+        null
+      );
       const prods = await api.getProducts();
       setProducts(prods || []);
     } catch (err) {
       console.error('Error loading context:', err);
     }
-  }, [activeFacility, activeUser]);
+  }, []);
 
   // Refresh operational state
   const refreshData = useCallback(async () => {
@@ -111,7 +115,7 @@ export default function DashboardPage() {
     setIsCreatingProposal(true);
     try {
       await api.createProposal(opp);
-      await refreshData();
+      setProposals(await api.getProposals());
       setCurrentTab('approvals');
     } finally {
       setIsCreatingProposal(false);
@@ -306,4 +310,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

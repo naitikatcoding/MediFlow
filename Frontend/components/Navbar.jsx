@@ -91,7 +91,11 @@ export function Navbar({
                     <div className="flex justify-between">
                       <span className="text-slate-400">Storage Mode:</span>
                       <span className="text-slate-200">
-                        {health?.database?.is_fallback ? 'SQLite (Dev Fallback)' : 'YugabyteDB'}
+                        {health?.database?.is_fallback
+                          ? 'SQLite (Dev Fallback)'
+                          : health?.database?.engine === 'sqlite'
+                            ? 'SQLite (Configured)'
+                            : 'YugabyteDB'}
                       </span>
                     </div>
                     {apiError && (

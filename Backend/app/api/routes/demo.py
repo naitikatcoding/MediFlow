@@ -86,7 +86,7 @@ def simulate_stock_change_edge_case(
 def get_demo_context(db: Session = Depends(get_db)):
     """Provides UI with quick switchable users, facilities, and scannable test tokens."""
     facilities = db.query(Facility).all()
-    users = db.query(User).all()
+    users = db.query(User).filter(User.status == "ACTIVE").all()
 
     return {
         "facilities": [{"id": f.id, "name": f.name, "type": f.facility_type, "capabilities": f.storage_capabilities} for f in facilities],

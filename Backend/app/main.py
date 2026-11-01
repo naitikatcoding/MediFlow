@@ -17,6 +17,7 @@ from app.core.database import (
     get_engine,
     initialize_database,
     is_yugabyte_active,
+    ensure_audit_correlation_schema,
 )
 from app.api.routes import (
     facilities, products, inventory, forecasts, risks,
@@ -39,6 +40,7 @@ async def lifespan(_: FastAPI):
         startup_was_yugabyte = is_yugabyte_active()
         try:
             Base.metadata.create_all(bind=get_engine())
+            ensure_audit_correlation_schema(get_engine())
             logger.info("Database schema verified/created.")
         except Exception as exc:
             fallback_switched = fallback_to_sqlite(exc)
@@ -47,6 +49,7 @@ async def lifespan(_: FastAPI):
             ):
                 raise
             Base.metadata.create_all(bind=get_engine())
+            ensure_audit_correlation_schema(get_engine())
             logger.warning("Database schema initialized on SQLite fallback.")
         yield
     finally:
@@ -150,6 +153,8 @@ def compute_health_status():
             db_status = f"ERROR: {type(e).__name__}"
 
     using_yugabyte = is_yugabyte_active()
+    configured_database = "postgresql/yugabyte" if settings.is_yugabyte else "sqlite"
+    active_database = "postgresql/yugabyte" if using_yugabyte else "sqlite"
     return {
         "status": "healthy" if db_status == "CONNECTED" else "degraded",
         "service": settings.APP_NAME,
@@ -157,8 +162,9 @@ def compute_health_status():
         "environment": settings.APP_ENV,
         "database": {
             "status": db_status,
-            "engine": "postgresql/yugabyte" if using_yugabyte else "sqlite_fallback",
-            "is_fallback": not using_yugabyte
+            "engine": active_database,
+            "configured_engine": configured_database,
+            "is_fallback": settings.is_yugabyte and not using_yugabyte
         },
         "integrations": {
             "gemini": gemini_adapter.get_status(),
