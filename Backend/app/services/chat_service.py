@@ -23,12 +23,14 @@ _STOP_WORDS = {
     "about", "available", "can", "could", "current", "does", "for", "from",
     "give", "have", "help", "how", "inventory", "is", "left", "me", "much",
     "of", "our", "please", "quantity", "remaining", "show", "stock", "tell",
-    "the", "there", "this", "total", "what", "which", "with", "you",
+    "the", "there", "this", "to", "total", "what", "which", "with", "you",
 }
 _PRODUCT_SEARCH_STOP_WORDS = {
     "batch", "batches", "expired", "expiring", "expiry", "expiration",
     "medicine", "medicines", "drug", "drugs", "product", "products",
-    "facility", "facilities", "hospital", "network",
+    "facility", "facilities", "hospital", "network", "closest", "nearest",
+    "soon", "soonest", "upcoming", "expire", "expires", "first", "next",
+    "when", "are", "will", "before", "date", "out", "be",
 }
 
 KNOWLEDGE_CHUNKS = [
@@ -363,6 +365,14 @@ def _live_inventory_context(
     question: str,
     facility_id: Optional[str],
 ) -> Tuple[str, List[Dict[str, str]], Optional[str], List[str]]:
+    expiry_list_question = bool(
+        re.search(r"\b(batch|batches|expir\w*)\b", question, re.I)
+        and re.search(
+            r"\b(closest|nearest|soon|soonest|upcoming|next|first|expiring)\b",
+            question,
+            re.I,
+        )
+    )
     terms = [
         term
         for term in _tokenize(question)
@@ -385,7 +395,7 @@ def _live_inventory_context(
             db.query(Product)
             .filter(Product.status == "ACTIVE", or_(*conditions))
             .order_by(Product.name.asc())
-                .all()
+            .all()
         )
         query_terms = set(terms)
         product_scores = [
@@ -417,6 +427,13 @@ def _live_inventory_context(
             for score, product in product_scores
             if score == best_score and best_score > 0
         ][:5]
+    if expiry_list_question and not products:
+        products = (
+            db.query(Product)
+            .filter(Product.status == "ACTIVE")
+            .order_by(Product.name.asc())
+            .all()
+        )
 
     now = datetime.now(timezone.utc)
     non_expired_question = bool(
@@ -492,7 +509,29 @@ def _live_inventory_context(
         )
         if facility_id:
             query = query.filter(Facility.id == facility_id)
-        inventory_rows = query.order_by(Product.name.asc(), Facility.name.asc(), Batch.expiry_date.asc()).limit(100).all()
+        if expiry_list_question:
+            inventory_rows = (
+                query
+                .filter(
+                    Batch.expiry_date >= date.today(),
+                    FacilityBatchInventory.on_hand_quantity > 0,
+                )
+                .order_by(
+                    Batch.expiry_date.asc(),
+                    Product.name.asc(),
+                    Facility.name.asc(),
+                    Batch.manufacturer_lot_number.asc(),
+                )
+                .limit(5)
+                .all()
+            )
+        else:
+            inventory_rows = (
+                query
+                .order_by(Product.name.asc(), Facility.name.asc(), Batch.expiry_date.asc())
+                .limit(100)
+                .all()
+            )
 
         if not inventory_rows:
             names = ", ".join(product.name for product in products)
@@ -574,7 +613,19 @@ def _live_inventory_context(
         )
 
     concise_answer = None
-    if expired_stock_question or stock_quantity_question:
+    if expiry_list_question:
+        if not inventory_rows:
+            location = facility.name if facility else "the selected network"
+            concise_answer = f"No non-expired batches with stock were found at {location}."
+        else:
+            concise_answer = "\n".join(
+                f"{batch.manufacturer_lot_number} — {product.name} at {site.name}: "
+                f"{inventory.on_hand_quantity} {inventory.unit}, expires "
+                f"{batch.expiry_date.isoformat()} "
+                f"({(batch.expiry_date - date.today()).days} days)."
+                for inventory, batch, product, site in inventory_rows
+            )
+    elif expired_stock_question or stock_quantity_question:
         if not products:
             concise_answer = (
                 "Which medicine should I check for expired stock?"
@@ -614,12 +665,25 @@ def _live_inventory_context(
                     for summary in totals.values()
                 )
 
-    return "\n".join(context_lines), sources, concise_answer, [
-        product.name for product in products
-    ]
+    answer_products = (
+        list(dict.fromkeys(product.name for _, _, product, _ in inventory_rows))
+        if expiry_list_question
+        else [product.name for product in products]
+    )
+    return "\n".join(context_lines), sources, concise_answer, answer_products
 
 
 def _follow_up_suggestions(question: str, product_names: Sequence[str]) -> List[str]:
+    if re.search(r"\b(batch|batches|expir\w*)\b", question, re.I) and re.search(
+        r"\b(closest|nearest|soon|soonest|upcoming|next|first|expiring)\b",
+        question,
+        re.I,
+    ):
+        return [
+            "Which facility has the nearest-expiring batch?",
+            "How much stock is in the nearest-expiring batch?",
+            "Show batches expiring within 30 days.",
+        ]
     if product_names:
         name = product_names[0]
         if re.search(r"\b(expired|expiry|expiring)\b", question, re.I):
@@ -762,7 +826,6 @@ def answer_chat(
             if turn.get("role") == "user"
         ]
     )
-    provider, chunks = _retrieve_context(retrieval_question, facility_id)
     inventory_context, inventory_sources, concise_answer, product_names = _live_inventory_context(
         db,
         safe_question,
@@ -774,7 +837,10 @@ def answer_chat(
     db.rollback()
     if concise_answer is not None:
         answer, answer_provider = concise_answer, "grounded_fallback"
+        provider = "operational_database"
+        chunks = []
     else:
+        provider, chunks = _retrieve_context(retrieval_question, facility_id)
         answer, answer_provider = _generate_answer(
             safe_question,
             history or [],
@@ -791,6 +857,7 @@ def answer_chat(
                     "meko": "MEKO shared memory",
                     "yugabyte_pgvector": "YugabyteDB pgvector",
                     "local_sqlite": "Local MediFlow knowledge base",
+                    "operational_database": "Operational database",
                 }[provider],
                 "reference": chunk.get("id"),
             }

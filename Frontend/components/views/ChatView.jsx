@@ -31,6 +31,7 @@ const providerLabels = {
   meko: 'MEKO memory',
   yugabyte_pgvector: 'YugabyteDB knowledge',
   local_sqlite: 'Local knowledge base',
+  operational_database: 'Live inventory data',
 };
 
 export function ChatView({ activeFacility, compact = false, onClose }) {

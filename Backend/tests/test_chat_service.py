@@ -9,6 +9,7 @@ from app.core.database import Base
 from app.models.inventory import FacilityBatchInventory
 from app.models.organization import Facility, Organisation
 from app.models.product import Batch, Product
+from app.schemas.chat import ChatResponse
 from app.services import chat_service
 
 
@@ -86,6 +87,26 @@ def chat_db():
             unit="BOTTLE",
         )
     )
+    upcoming_batch = Batch(
+        product_id=paracetamol.id,
+        manufacturer_lot_number="CHAT-LOT-UPCOMING",
+        expiry_date=date.today() + timedelta(days=12),
+        manufacturer="Test Pharma",
+        quality_status="RELEASED",
+    )
+    db.add(upcoming_batch)
+    db.flush()
+    db.add(
+        FacilityBatchInventory(
+            facility_id=facility.id,
+            batch_id=upcoming_batch.id,
+            on_hand_quantity=6,
+            reserved_quantity=1,
+            quarantined_quantity=0,
+            damaged_quantity=0,
+            unit="BOTTLE",
+        )
+    )
     db.commit()
     try:
         yield db, facility
@@ -119,12 +140,13 @@ def add_second_facility_inventory(db, facility):
     return second_facility
 
 
-def test_chat_answers_stock_from_live_inventory_and_uses_local_rag(monkeypatch, chat_db):
+def test_chat_answers_stock_from_live_operational_inventory(monkeypatch, chat_db):
     db, facility = chat_db
-    monkeypatch.setattr(chat_service.meko_adapter, "retrieve_context", lambda **kwargs: [])
-    monkeypatch.setattr(chat_service.database, "is_yugabyte_active", lambda: False)
-    monkeypatch.setattr(chat_service.database, "get_local_knowledge_engine", db.get_bind)
-    monkeypatch.setattr(chat_service.settings, "GEMINI_API_KEY", None)
+    monkeypatch.setattr(
+        chat_service,
+        "_retrieve_context",
+        lambda *_args, **_kwargs: pytest.fail("live stock answers should not use RAG fallback"),
+    )
 
     response = chat_service.answer_chat(
         db,
@@ -132,7 +154,7 @@ def test_chat_answers_stock_from_live_inventory_and_uses_local_rag(monkeypatch, 
         facility_id=facility.id,
     )
 
-    assert response["retrieval_provider"] == "local_sqlite"
+    assert response["retrieval_provider"] == "operational_database"
     assert response["answer_provider"] == "grounded_fallback"
     assert response["answer"] == (
         "Ceftriaxone 1g Injection at North Test Hospital: "
@@ -196,8 +218,37 @@ def test_eligible_stock_question_does_not_count_expired_inventory(monkeypatch, c
 
     assert response["answer"] == (
         "Paracetamol 1g IV Infusion at North Test Hospital: "
-        "0 BOTTLE eligible, non-expired stock."
+        "5 BOTTLE eligible, non-expired stock."
     )
+
+
+def test_closest_expiry_question_uses_live_batches_and_skips_rag(monkeypatch, chat_db):
+    db, facility = chat_db
+    monkeypatch.setattr(
+        chat_service,
+        "_retrieve_context",
+        lambda *_args, **_kwargs: pytest.fail("live expiry query should not use RAG fallback"),
+    )
+
+    response = chat_service.answer_chat(
+        db,
+        "Which batches are closest to expiry?",
+        facility_id=facility.id,
+    )
+
+    lines = response["answer"].splitlines()
+    assert lines[0].startswith("CHAT-LOT-UPCOMING — Paracetamol 1g IV Infusion")
+    assert "6 BOTTLE, expires" in lines[0]
+    assert lines[1].startswith("CHAT-LOT-1 — Ceftriaxone 1g Injection")
+    assert "CHAT-LOT-EXPIRED" not in response["answer"]
+    assert response["retrieval_provider"] == "operational_database"
+    assert response["suggestions"] == [
+        "Which facility has the nearest-expiring batch?",
+        "How much stock is in the nearest-expiring batch?",
+        "Show batches expiring within 30 days.",
+    ]
+    assert all(source["source"] == "Operational database" for source in response["sources"])
+    assert ChatResponse.model_validate(response).retrieval_provider == "operational_database"
 
 
 def test_chat_question_can_override_selected_facility(monkeypatch, chat_db):

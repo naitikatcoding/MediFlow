@@ -24,6 +24,8 @@ class ChatResponse(BaseModel):
     answer: str
     sources: List[ChatSource]
     suggestions: List[str] = Field(default_factory=list, max_length=3)
-    retrieval_provider: Literal["meko", "yugabyte_pgvector", "local_sqlite"]
+    retrieval_provider: Literal[
+        "meko", "yugabyte_pgvector", "local_sqlite", "operational_database"
+    ]
     answer_provider: Literal["gemini", "grounded_fallback"]
     generated_at: str
